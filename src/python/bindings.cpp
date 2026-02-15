@@ -31,6 +31,8 @@ Shape ListToShape(const py::list& dims) {
             dimensions.emplace_back(item.cast<int64_t>());
         } else if (py::isinstance<py::str>(item)) {
             dimensions.emplace_back(item.cast<std::string>());
+        } else if (py::isinstance<Dimension>(item)) {
+            dimensions.emplace_back(item.cast<Dimension>());
         } else if (item.is_none()) {
             dimensions.emplace_back();  // Dynamic
         }
@@ -109,7 +111,8 @@ PYBIND11_MODULE(_oniris, m) {
         .def("is_scalar", &Shape::IsScalar, "Check if scalar")
         .def("is_dynamic", &Shape::IsDynamic, "Check if any dimension is dynamic")
         .def("is_static", &Shape::IsStatic, "Check if all dimensions are static")
-        .def("get_dim", [](const Shape& s, size_t idx) { return s.GetDim(idx); })
+        .def("get_dim", [](Shape& s, size_t idx) -> Dimension& { return s.GetDim(idx); }, 
+             py::arg("idx"), py::return_value_policy::reference)
         .def("get_dims", static_cast<const std::vector<Dimension>& (Shape::*)() const>(&Shape::GetDims))
         .def("add_dim", py::overload_cast<const Dimension&>(&Shape::AddDim))
         .def("add_dim", py::overload_cast<int64_t>(&Shape::AddDim))
@@ -211,6 +214,13 @@ PYBIND11_MODULE(_oniris, m) {
             return g.GetValueInfo(name);
         }, py::return_value_policy::reference)
         .def("set_value_info", &Graph::SetValueInfo)
+        .def("get_value_info_names", [](const Graph& g) {
+            std::vector<std::string> names;
+            for (const auto& [name, _] : g.GetAllValueInfos()) {
+                names.push_back(name);
+            }
+            return names;
+        })
         .def("get_producer", &Graph::GetProducer)
         .def("get_consumers", &Graph::GetConsumers)
         .def("topological_sort", &Graph::TopologicalSort)
@@ -257,18 +267,36 @@ PYBIND11_MODULE(_oniris, m) {
     // Passes
     // ========================================================================
     
+    // InferenceContext
+    py::class_<InferenceContext>(m, "InferenceContext")
+        .def_readonly("input_shapes", &InferenceContext::input_shapes)
+        .def_readonly("input_dtypes", &InferenceContext::input_dtypes)
+        .def("get_input_shape", &InferenceContext::GetInputShape, py::arg("idx"));
+    
     // InferenceResult
     py::class_<InferenceResult>(m, "InferenceResult")
         .def_readonly("success", &InferenceResult::success)
         .def_readonly("error_msg", &InferenceResult::error_msg)
-        .def_readonly("output_shapes", &InferenceResult::output_shapes);
+        .def_readonly("output_shapes", &InferenceResult::output_shapes)
+        .def_static("Success", &InferenceResult::Success, py::arg("shapes"))
+        .def_static("Error", &InferenceResult::Error, py::arg("msg"));
     
     // ShapeInferenceEngine
     py::class_<ShapeInferenceEngine>(m, "ShapeInferenceEngine")
         .def_static("get_instance", &ShapeInferenceEngine::GetInstance,
                     py::return_value_policy::reference)
-        .def("register_handler", &ShapeInferenceEngine::Register,
-             py::arg("op_type"), py::arg("func"), py::arg("domain") = "")
+        .def("register_handler", [](ShapeInferenceEngine& self, 
+                                    const std::string& op_type,
+                                    py::function func,
+                                    const std::string& domain) {
+            // Note: Storing Python callbacks in C++ can cause GIL issues on exit.
+            // For production use, avoid storing Python functions in C++ singletons.
+            self.Register(op_type, [func](const InferenceContext& ctx) -> InferenceResult {
+                py::gil_scoped_acquire acquire;
+                py::object result = func(ctx);
+                return result.cast<InferenceResult>();
+            }, domain);
+        }, py::arg("op_type"), py::arg("func"), py::arg("domain") = "")
         .def("has_handler", &ShapeInferenceEngine::HasHandler,
              py::arg("op_type"), py::arg("domain") = "")
         .def("infer_graph", &ShapeInferenceEngine::InferGraph,

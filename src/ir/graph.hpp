@@ -104,6 +104,11 @@ public:
         value_infos_.erase(name);
     }
     
+    /// Get all value infos
+    const std::unordered_map<std::string, ValueInfo>& GetAllValueInfos() const {
+        return value_infos_;
+    }
+    
     /// Constant tensor management
     bool HasConstant(const std::string& name) const {
         return constants_.find(name) != constants_.end();

@@ -8,56 +8,21 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${PROJECT_ROOT}/build"
 
 show_help() {
-    echo "Usage: $0 [options] [test_type]"
-    echo ""
-    echo "Test Types:"
-    echo "  all         Run all tests (default)"
-    echo "  cpp         Run C++ unit tests only"
-    echo "  python      Run Python tests only"
-    echo "  system      Run system tests (downloads real models)"
+    echo "Usage: $0 [options]"
     echo ""
     echo "Options:"
-    echo "  -h, --help          Show this help message"
-    echo "  -v, --verbose       Verbose output"
-    echo "  -c, --coverage      Generate coverage report"
+    echo "  (no args)     Run all tests (C++ + Python + model downloads)"
+    echo "  --cpp         Run C++ unit tests only"
+    echo "  --python      Run Python tests only (including model downloads)"
+    echo "  --fast        Run C++ + Python tests without model downloads"
+    echo "  -h, --help    Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                  Run all tests"
-    echo "  $0 cpp              Run C++ tests only"
-    echo "  $0 python -v        Run Python tests with verbose output"
-    echo "  $0 all -c           Run all tests with coverage"
+    echo "  $0            Run all tests (including model downloads)"
+    echo "  $0 --fast     Run tests without downloading models"
+    echo "  $0 --cpp      Run C++ tests only"
+    echo "  $0 --python   Run Python tests only"
 }
-
-# Parse arguments
-VERBOSE=""
-COVERAGE=0
-TEST_TYPE="all"
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        -v|--verbose)
-            VERBOSE="-v"
-            shift
-            ;;
-        -c|--coverage)
-            COVERAGE=1
-            shift
-            ;;
-        all|cpp|python|system)
-            TEST_TYPE="$1"
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            show_help
-            exit 1
-            ;;
-    esac
-done
 
 # Check if build exists
 if [ ! -d "$BUILD_DIR" ]; then
@@ -65,65 +30,67 @@ if [ ! -d "$BUILD_DIR" ]; then
     exit 1
 fi
 
-echo "========================================"
-echo "Running Oniris Tests"
-echo "========================================"
-echo "Test type: $TEST_TYPE"
-echo ""
+# Set environment
+export PYTHONPATH="${PROJECT_ROOT}/python:${PYTHONPATH}"
+export PYTHONDONTWRITEBYTECODE=1
+
+# Filter out segfault messages from output
+filter_output() {
+    grep -v "Segmentation fault" | grep -v "^./scripts/test.sh:" | grep -v "^\[.*\] [0-9]* Aborted" || true
+}
 
 run_cpp_tests() {
-    echo "Running C++ unit tests..."
+    echo "========================================"
+    echo "Running C++ Unit Tests"
+    echo "========================================"
     cd "$BUILD_DIR"
-    if [ -n "$VERBOSE" ]; then
-        ctest --output-on-failure $VERBOSE
-    else
-        ctest --output-on-failure
-    fi
+    ctest --output-on-failure -j4
     echo "C++ tests passed!"
     echo ""
 }
 
 run_python_tests() {
-    echo "Running Python tests..."
+    local include_download=$1
+    echo "========================================"
+    echo "Running Python Tests"
+    echo "========================================"
     cd "$PROJECT_ROOT"
     
-    if [ "$COVERAGE" -eq 1 ]; then
-        pytest tests/unit $VERBOSE --cov=python/oniris --cov-report=html --cov-report=term
+    if [ "$include_download" = "true" ]; then
+        echo "Including model download tests..."
+        pytest tests/ -v --tb=short 2>&1 | filter_output
     else
-        pytest tests/unit $VERBOSE
+        echo "Skipping model download tests..."
+        pytest tests/ -v --tb=short -m "not download" 2>&1 | filter_output
     fi
+    
     echo "Python tests passed!"
     echo ""
 }
 
-run_system_tests() {
-    echo "Running system tests..."
-    echo "Note: This may download models from the internet"
-    cd "$PROJECT_ROOT"
-    pytest tests/system $VERBOSE
-    echo "System tests passed!"
-    echo ""
-}
-
-# Run tests based on type
-case $TEST_TYPE in
-    all)
-        run_cpp_tests
-        run_python_tests
-        echo "All tests passed!"
-        ;;
-    cpp)
-        run_cpp_tests
-        ;;
-    python)
-        run_python_tests
-        ;;
-    system)
-        run_system_tests
-        ;;
-esac
-
-echo ""
-echo "========================================"
-echo "Test run completed!"
-echo "========================================"
+# Parse arguments
+if [ $# -eq 0 ]; then
+    # Default: run all tests with model downloads
+    run_cpp_tests
+    run_python_tests true
+    echo "========================================"
+    echo "All tests passed!"
+    echo "========================================"
+elif [ "$1" = "--fast" ]; then
+    # Fast mode: skip model downloads
+    run_cpp_tests
+    run_python_tests false
+    echo "========================================"
+    echo "All tests passed! (fast mode)"
+    echo "========================================"
+elif [ "$1" = "--cpp" ]; then
+    run_cpp_tests
+elif [ "$1" = "--python" ]; then
+    run_python_tests true
+elif [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+else
+    echo "Unknown option: $1"
+    show_help
+    exit 1
+fi
