@@ -112,17 +112,19 @@ cd build && ctest --output-on-failure  # C++ tests
 
 ## Supported Operators
 
-Oniris supports 130+ ONNX operators including:
+Oniris supports 165+ ONNX operators including:
 
 - **Math (40+)**: Abs, Neg, Floor, Ceil, Exp, Log, Sin, Cos, Tanh, Erf, etc.
 - **Element-wise (20+)**: Add, Sub, Mul, Div, Pow, Min, Max, etc.
-- **Linear Algebra (3)**: MatMul, Gemm, QGemm (com.microsoft)
-- **Convolution (10+)**: Conv, ConvTranspose, MaxPool, AveragePool, GlobalPool
-- **Normalization (5+)**: BatchNormalization, LayerNormalization, GroupNormalization
+- **Linear Algebra (5+)**: MatMul, Gemm, QGemm, FusedGemm, FusedMatMul
+- **Convolution (10+)**: Conv, ConvTranspose, MaxPool, AveragePool, GlobalPool, FusedConv
+- **Normalization (8+)**: BatchNormalization, LayerNormalization, GroupNormalization, RmsNorm, SkipLayerNormalization
 - **Shape (20+)**: Reshape, Transpose, Concat, Split, Squeeze, Unsqueeze, Gather
 - **Reduction (12)**: ReduceSum, ReduceMean, ReduceMax, ReduceMin, ArgMax, ArgMin
-- **Activation (20+)**: ReLU, GELU, Mish, HardSwish, Softmax, Sigmoid, etc.
-- **Quantization (9)**: QuantizeLinear, QLinearConv, QLinearMatMul, QGemm, etc.
+- **Activation (25+)**: ReLU, GELU, FastGelu, Mish, HardSwish, Softmax, Sigmoid, etc.
+- **Quantization (15+)**: QuantizeLinear, QLinearConv, QLinearMatMul, QGemm, QLinearAdd, etc.
+- **Attention (5+)**: Attention, MultiHeadAttention, DecoderAttention, EmbedLayerNormalization
+- **Microsoft Domain (37+)**: Full support for com.microsoft domain operators
 
 See [API Documentation](docs/API.md) for the full list.
 

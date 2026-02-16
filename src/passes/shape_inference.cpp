@@ -801,6 +801,335 @@ InferenceResult InferQGemm(const InferenceContext& ctx) {
     return InferenceResult::Success({Shape({m, n})});
 }
 
+// =============================================================================
+// Microsoft Domain Operators
+// =============================================================================
+
+// QLinearAdd - Quantized Linear Add
+InferenceResult InferQLinearAdd(const InferenceContext& ctx) {
+    return InferBroadcastBinary(ctx);
+}
+
+// QLinearMul - Quantized Linear Mul
+InferenceResult InferQLinearMul(const InferenceContext& ctx) {
+    return InferBroadcastBinary(ctx);
+}
+
+// QLinearAveragePool - Quantized AveragePool
+InferenceResult InferQLinearAveragePool(const InferenceContext& ctx) {
+    return InferPool(ctx);
+}
+
+// QLinearGlobalAveragePool - Quantized GlobalAveragePool
+InferenceResult InferQLinearGlobalAveragePool(const InferenceContext& ctx) {
+    return InferGlobalPool(ctx);
+}
+
+// QLinearLeakyRelu - Quantized LeakyRelu
+InferenceResult InferQLinearLeakyRelu(const InferenceContext& ctx) {
+    return InferIdentityUnary(ctx);
+}
+
+// QLinearSigmoid - Quantized Sigmoid
+InferenceResult InferQLinearSigmoid(const InferenceContext& ctx) {
+    return InferIdentityUnary(ctx);
+}
+
+// QLinearSoftmax - Quantized Softmax
+InferenceResult InferQLinearSoftmax(const InferenceContext& ctx) {
+    return InferSoftmax(ctx);
+}
+
+// QLinearConcat - Quantized Concat
+InferenceResult InferQLinearConcat(const InferenceContext& ctx) {
+    return InferConcat(ctx);
+}
+
+// QLinearReduceMean - Quantized ReduceMean
+InferenceResult InferQLinearReduceMean(const InferenceContext& ctx) {
+    return InferReduce(ctx);
+}
+
+// DynamicQuantizeLSTM - Dynamic Quantize LSTM
+// Outputs: Y, Y_h, Y_c
+InferenceResult InferDynamicQuantizeLSTM(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("DynamicQuantizeLSTM requires input");
+    }
+    const Shape& x = ctx.input_shapes[0];
+    if (x.NumDims() < 2) {
+        return InferenceResult::Error("DynamicQuantizeLSTM input must have >= 2 dims");
+    }
+    
+    // Y has same shape as X
+    Shape y = x;
+    
+    // Y_h and Y_c have shape [num_directions, batch, hidden_size]
+    // These depend on attributes, return dynamic for now
+    auto num_directions = ctx.GetAttribute<int64_t>("directions").value_or(1);
+    std::vector<Dimension> hidden_dims = {Dimension(num_directions), Dimension(), Dimension()};
+    Shape y_h(hidden_dims);
+    Shape y_c(hidden_dims);
+    
+    return InferenceResult::Success({y, y_h, y_c});
+}
+
+// DynamicQuantizeMatMul
+InferenceResult InferDynamicQuantizeMatMul(const InferenceContext& ctx) {
+    return InferMatMul(ctx);
+}
+
+// MatMulIntegerToFloat
+InferenceResult InferMatMulIntegerToFloat(const InferenceContext& ctx) {
+    return InferMatMul(ctx);
+}
+
+// Gelu - Gaussian Error Linear Unit (Microsoft domain)
+InferenceResult InferGelu(const InferenceContext& ctx) {
+    return InferIdentityUnary(ctx);
+}
+
+// FastGelu - Fast Gelu approximation
+InferenceResult InferFastGelu(const InferenceContext& ctx) {
+    return InferIdentityUnary(ctx);
+}
+
+// BiasGelu - Bias + Gelu
+InferenceResult InferBiasGelu(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("BiasGelu requires input");
+    }
+    return InferenceResult::Success({ctx.input_shapes[0]});
+}
+
+// LayerNormalization - Microsoft domain version
+InferenceResult InferLayerNormalizationMS(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("LayerNormalization requires input");
+    }
+    // Microsoft version may have different outputs than standard
+    std::vector<Shape> outputs = {ctx.input_shapes[0]};
+    
+    // May output mean and inv_std_var for training
+    auto stash_type = ctx.GetAttribute<int64_t>("stash_type");
+    if (stash_type.has_value()) {
+        // Return simplified shapes for mean and inv_std
+        outputs.push_back(Shape());  // mean
+        outputs.push_back(Shape());  // inv_std_var
+    }
+    
+    return InferenceResult::Success(outputs);
+}
+
+// SkipLayerNormalization
+InferenceResult InferSkipLayerNormalization(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("SkipLayerNormalization requires input");
+    }
+    // Output: output, mean, inv_std_var, input_skip_sum
+    std::vector<Shape> outputs = {ctx.input_shapes[0], Shape(), Shape()};
+    
+    auto simplified = ctx.GetAttribute<int64_t>("simplified").value_or(0);
+    if (!simplified) {
+        outputs.push_back(ctx.input_shapes[0]);  // input_skip_sum
+    }
+    
+    return InferenceResult::Success(outputs);
+}
+
+// RmsNorm - Root Mean Square Normalization
+InferenceResult InferRmsNorm(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("RmsNorm requires input");
+    }
+    return InferenceResult::Success({ctx.input_shapes[0]});
+}
+
+// EmbedLayerNormalization
+// Inputs: input_ids, segment_ids, word_embedding, position_embedding, segment_embedding, gamma, beta, mask
+// Outputs: output, mask_index
+InferenceResult InferEmbedLayerNormalization(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("EmbedLayerNormalization requires input");
+    }
+    const Shape& input_ids = ctx.input_shapes[0];
+    
+    // Output shape is [batch_size, seq_len, hidden_size]
+    // Use input_ids shape as base and add hidden_dim
+    std::vector<Dimension> out_dims = input_ids.GetDims();
+    out_dims.push_back(Dimension());  // hidden_size from embeddings
+    
+    // mask_index has shape [batch_size]
+    Shape mask_index({input_ids.GetDim(0)});
+    
+    return InferenceResult::Success({Shape(out_dims), mask_index});
+}
+
+// Attention - Multi-head attention
+// Inputs: input, weights, bias, mask_index, past, relative_position_bias
+// Outputs: output, present, qk_matmul_output
+InferenceResult InferAttention(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("Attention requires input");
+    }
+    const Shape& input = ctx.input_shapes[0];
+    
+    // Output shape is same as input for the main output
+    Shape output = input;
+    
+    // present key/values depend on past and batch
+    Shape present;
+    Shape qk_matmul;
+    
+    return InferenceResult::Success({output, present, qk_matmul});
+}
+
+// MultiHeadAttention
+InferenceResult InferMultiHeadAttention(const InferenceContext& ctx) {
+    if (ctx.input_shapes.size() < 3) {
+        return InferenceResult::Error("MultiHeadAttention requires query, key, value");
+    }
+    const Shape& query = ctx.input_shapes[0];
+    // Output shape follows query
+    return InferenceResult::Success({query});
+}
+
+// DecoderAttention
+InferenceResult InferDecoderAttention(const InferenceContext& ctx) {
+    if (ctx.input_shapes.size() < 4) {
+        return InferenceResult::Error("DecoderAttention requires query, key, q_weight, kv_weight");
+    }
+    const Shape& query = ctx.input_shapes[0];
+    return InferenceResult::Success({query});
+}
+
+// FusedConv - Fused Conv with activation
+InferenceResult InferFusedConv(const InferenceContext& ctx) {
+    return InferConv(ctx);
+}
+
+// FusedGemm - Fused Gemm with activation
+InferenceResult InferFusedGemm(const InferenceContext& ctx) {
+    return InferGemm(ctx);
+}
+
+// FusedMatMul - Fused MatMul with activation
+InferenceResult InferFusedMatMul(const InferenceContext& ctx) {
+    return InferMatMul(ctx);
+}
+
+// Trilu - Upper/Lower triangular matrix
+InferenceResult InferTrilu(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("Trilu requires input");
+    }
+    return InferenceResult::Success({ctx.input_shapes[0]});
+}
+
+// Unique - Find unique elements
+// Outputs: Y, indices, inverse_indices, counts
+InferenceResult InferUnique(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("Unique requires input");
+    }
+    // Y has dynamic shape based on unique elements
+    Shape y;
+    Shape indices(ctx.input_shapes[0].GetDims());
+    Shape inverse(ctx.input_shapes[0].GetDims());
+    Shape counts;
+    
+    return InferenceResult::Success({y, indices, inverse, counts});
+}
+
+// Scatter, ScatterElements, ScatterND
+InferenceResult InferScatter(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("Scatter requires input");
+    }
+    return InferenceResult::Success({ctx.input_shapes[0]});
+}
+
+// IsAllFinite - Check if all elements are finite
+InferenceResult InferIsAllFinite(const InferenceContext& ctx) {
+    // Output is scalar boolean
+    return InferenceResult::Success({Shape()});
+}
+
+// GridSample - Spatial transformer
+InferenceResult InferGridSample(const InferenceContext& ctx) {
+    if (ctx.input_shapes.size() < 2) {
+        return InferenceResult::Error("GridSample requires input and grid");
+    }
+    const Shape& input = ctx.input_shapes[0];
+    const Shape& grid = ctx.input_shapes[1];
+    
+    // Output: [N, C, grid_H, grid_W]
+    if (input.NumDims() < 4 || grid.NumDims() < 4) {
+        return InferenceResult::Error("GridSample inputs must be 4D");
+    }
+    
+    std::vector<Dimension> out_dims = {
+        input.GetDim(0),
+        input.GetDim(1),
+        grid.GetDim(1),
+        grid.GetDim(2)
+    };
+    return InferenceResult::Success({Shape(out_dims)});
+}
+
+// ImageScaler
+InferenceResult InferImageScaler(const InferenceContext& ctx) {
+    return InferIdentityUnary(ctx);
+}
+
+// CropAndResize
+// Inputs: X, rois, batch_indices, image_size
+InferenceResult InferCropAndResize(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("CropAndResize requires input");
+    }
+    
+    auto crop_size = ctx.GetAttribute<std::vector<int64_t>>("crop_size");
+    if (!crop_size.has_value() || crop_size->size() < 2) {
+        return InferenceResult::Success({Shape()});
+    }
+    
+    // Output: [num_rois, channels, crop_height, crop_width]
+    const Shape& x = ctx.input_shapes[0];
+    if (x.NumDims() < 4) {
+        return InferenceResult::Error("CropAndResize input must be 4D");
+    }
+    
+    std::vector<Dimension> out_dims;
+    if (ctx.input_shapes.size() >= 2 && ctx.input_shapes[1].NumDims() > 0) {
+        out_dims.push_back(ctx.input_shapes[1].GetDim(0));  // num_rois
+    } else {
+        out_dims.push_back(Dimension());
+    }
+    out_dims.push_back(x.GetDim(1));
+    out_dims.push_back(Dimension((*crop_size)[0]));
+    out_dims.push_back(Dimension((*crop_size)[1]));
+    
+    return InferenceResult::Success({Shape(out_dims)});
+}
+
+// Gradient ops - most return same shape as input
+InferenceResult InferGradientUnary(const InferenceContext& ctx) {
+    if (ctx.input_shapes.empty()) {
+        return InferenceResult::Error("Gradient op requires input");
+    }
+    return InferenceResult::Success({ctx.input_shapes[0]});
+}
+
+// SinGrad, CosGrad, etc.
+InferenceResult InferSinGrad(const InferenceContext& ctx) {
+    return InferGradientUnary(ctx);
+}
+
+InferenceResult InferCosGrad(const InferenceContext& ctx) {
+    return InferGradientUnary(ctx);
+}
+
 }  // anonymous namespace
 
 // =============================================================================
@@ -967,7 +1296,57 @@ void ShapeInferenceEngine::InitializeDefaultHandlers() {
     // QGemm (Microsoft domain quantized Gemm)
     Register("QGemm", InferQGemm, "com.microsoft");
     
-    ONIRIS_INFO << "Registered 120+ shape inference handlers";
+    // Microsoft Domain - Quantized Linear Ops
+    Register("QLinearAdd", InferQLinearAdd, "com.microsoft");
+    Register("QLinearMul", InferQLinearMul, "com.microsoft");
+    Register("QLinearAveragePool", InferQLinearAveragePool, "com.microsoft");
+    Register("QLinearGlobalAveragePool", InferQLinearGlobalAveragePool, "com.microsoft");
+    Register("QLinearLeakyRelu", InferQLinearLeakyRelu, "com.microsoft");
+    Register("QLinearSigmoid", InferQLinearSigmoid, "com.microsoft");
+    Register("QLinearSoftmax", InferQLinearSoftmax, "com.microsoft");
+    Register("QLinearConcat", InferQLinearConcat, "com.microsoft");
+    Register("QLinearReduceMean", InferQLinearReduceMean, "com.microsoft");
+    Register("DynamicQuantizeLSTM", InferDynamicQuantizeLSTM, "com.microsoft");
+    Register("DynamicQuantizeMatMul", InferDynamicQuantizeMatMul, "com.microsoft");
+    Register("MatMulIntegerToFloat", InferMatMulIntegerToFloat, "com.microsoft");
+    
+    // Microsoft Domain - Activation Ops
+    Register("Gelu", InferGelu, "com.microsoft");
+    Register("FastGelu", InferFastGelu, "com.microsoft");
+    Register("BiasGelu", InferBiasGelu, "com.microsoft");
+    
+    // Microsoft Domain - Normalization Ops  
+    Register("LayerNormalization", InferLayerNormalizationMS, "com.microsoft");
+    Register("SkipLayerNormalization", InferSkipLayerNormalization, "com.microsoft");
+    Register("RmsNorm", InferRmsNorm, "com.microsoft");
+    
+    // Microsoft Domain - Attention Ops
+    Register("Attention", InferAttention, "com.microsoft");
+    Register("MultiHeadAttention", InferMultiHeadAttention, "com.microsoft");
+    Register("DecoderAttention", InferDecoderAttention, "com.microsoft");
+    Register("EmbedLayerNormalization", InferEmbedLayerNormalization, "com.microsoft");
+    
+    // Microsoft Domain - Fused Ops
+    Register("FusedConv", InferFusedConv, "com.microsoft");
+    Register("FusedGemm", InferFusedGemm, "com.microsoft");
+    Register("FusedMatMul", InferFusedMatMul, "com.microsoft");
+    
+    // Microsoft Domain - Other Ops
+    Register("Trilu", InferTrilu, "com.microsoft");
+    Register("Unique", InferUnique, "com.microsoft");
+    Register("Scatter", InferScatter, "com.microsoft");
+    Register("ScatterElements", InferScatter, "com.microsoft");
+    Register("ScatterND", InferScatter, "com.microsoft");
+    Register("IsAllFinite", InferIsAllFinite, "com.microsoft");
+    Register("GridSample", InferGridSample, "com.microsoft");
+    Register("ImageScaler", InferImageScaler, "com.microsoft");
+    Register("CropAndResize", InferCropAndResize, "com.microsoft");
+    
+    // Microsoft Domain - Gradient Ops
+    Register("SinGrad", InferSinGrad, "com.microsoft");
+    Register("CosGrad", InferCosGrad, "com.microsoft");
+    
+    ONIRIS_INFO << "Registered 150+ shape inference handlers";
 }
 
 // =============================================================================

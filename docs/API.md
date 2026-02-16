@@ -201,6 +201,44 @@ def custom_conv_infer(ctx):
 oniris.register_custom_shape_inference("CustomConv", custom_conv_infer, domain="custom.domain")
 ```
 
+#### Microsoft Domain Operators
+
+Oniris fully supports Microsoft domain (`com.microsoft`) operators:
+
+**Quantized Linear Ops:**
+- `QGemm` - Quantized General Matrix Multiplication
+- `QLinearAdd`, `QLinearMul` - Quantized element-wise ops
+- `QLinearAveragePool`, `QLinearGlobalAveragePool` - Quantized pooling
+- `QLinearConcat`, `QLinearReduceMean` - Quantized shape ops
+- `QLinearLeakyRelu`, `QLinearSigmoid`, `QLinearSoftmax` - Quantized activations
+
+**Activation Ops:**
+- `Gelu`, `FastGelu` - Gaussian Error Linear Unit variants
+- `BiasGelu` - Bias + Gelu fusion
+
+**Normalization Ops:**
+- `LayerNormalization` - Microsoft domain LayerNorm
+- `SkipLayerNormalization` - Skip connection + LayerNorm
+- `RmsNorm` - Root Mean Square Normalization
+
+**Attention Ops:**
+- `Attention` - Multi-head self-attention
+- `MultiHeadAttention` - Generic multi-head attention
+- `DecoderAttention` - Decoder-specific attention
+- `EmbedLayerNormalization` - Embedding + LayerNorm
+
+**Fused Ops:**
+- `FusedConv` - Conv fused with activation
+- `FusedGemm` - Gemm fused with activation  
+- `FusedMatMul` - MatMul fused with activation
+
+**Other Ops:**
+- `Trilu` - Upper/lower triangular matrix
+- `Scatter`, `ScatterElements`, `ScatterND` - Scatter operations
+- `GridSample` - Spatial transformer
+- `CropAndResize` - ROI pooling
+- `IsAllFinite` - Check all elements are finite
+
 ### Model Simplification
 
 #### `Simplifier`

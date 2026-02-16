@@ -317,6 +317,363 @@ TEST(ShapeInference, QGemmTransposed) {
 }
 
 // ============================================================================
+// Microsoft Domain Operators Tests
+// ============================================================================
+
+TEST(ShapeInference, MicrosoftDomain_QLinearOps) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b;
+    a.name = "A";
+    a.shape = Shape({2, 3, 4});
+    b.name = "B";
+    b.shape = Shape({2, 3, 4});
+    graph.AddInput(a);
+    graph.AddInput(b);
+    
+    std::vector<std::string> ops = {
+        "QLinearAdd", "QLinearMul"
+    };
+    
+    for (const auto& op : ops) {
+        if (!engine.HasHandler(op, "com.microsoft")) continue;
+        
+        auto node = graph.CreateNode(op, op + "_1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("A");
+        node->AddInput("B");
+        node->AddOutput("C");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success) << "Failed for " << op;
+        
+        graph.RemoveNode(node);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_QLinearPool) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input;
+    input.name = "X";
+    input.shape = Shape({1, 3, 32, 32});
+    graph.AddInput(input);
+    
+    std::vector<std::string> ops = {
+        "QLinearAveragePool", "QLinearGlobalAveragePool"
+    };
+    
+    for (const auto& op : ops) {
+        if (!engine.HasHandler(op, "com.microsoft")) continue;
+        
+        auto node = graph.CreateNode(op, op + "_1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("X");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success) << "Failed for " << op;
+        
+        graph.RemoveNode(node);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_Activations) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input;
+    input.name = "X";
+    input.shape = Shape({2, 3, 4});
+    graph.AddInput(input);
+    
+    std::vector<std::string> ops = {
+        "Gelu", "FastGelu"
+    };
+    
+    for (const auto& op : ops) {
+        if (!engine.HasHandler(op, "com.microsoft")) continue;
+        
+        auto node = graph.CreateNode(op, op + "_1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("X");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success) << "Failed for " << op;
+        
+        graph.RemoveNode(node);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_Normalization) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input, skip, gamma, beta;
+    input.name = "X";
+    input.shape = Shape({2, 3, 256});
+    skip.name = "Skip";
+    skip.shape = Shape({2, 3, 256});
+    gamma.name = "Gamma";
+    gamma.shape = Shape({256});
+    beta.name = "Beta";
+    beta.shape = Shape({256});
+    graph.AddInput(input);
+    graph.AddInput(skip);
+    graph.AddInput(gamma);
+    graph.AddInput(beta);
+    
+    // Test RmsNorm
+    if (engine.HasHandler("RmsNorm", "com.microsoft")) {
+        auto node = graph.CreateNode("RmsNorm", "rmsnorm1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("X");
+        node->AddInput("Gamma");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 3);
+    }
+    
+    // Test SkipLayerNormalization
+    if (engine.HasHandler("SkipLayerNormalization", "com.microsoft")) {
+        auto node = graph.CreateNode("SkipLayerNormalization", "skip_ln1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("X");
+        node->AddInput("Skip");
+        node->AddInput("Gamma");
+        node->AddInput("Beta");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 3);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_FusedOps) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b;
+    a.name = "A";
+    a.shape = Shape({2, 3});
+    b.name = "B";
+    b.shape = Shape({3, 4});
+    graph.AddInput(a);
+    graph.AddInput(b);
+    
+    // Test FusedMatMul
+    if (engine.HasHandler("FusedMatMul", "com.microsoft")) {
+        auto node = graph.CreateNode("FusedMatMul", "fused_matmul1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("A");
+        node->AddInput("B");
+        node->AddOutput("C");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    }
+    
+    // Test FusedGemm
+    if (engine.HasHandler("FusedGemm", "com.microsoft")) {
+        auto node = graph.CreateNode("FusedGemm", "fused_gemm1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("A");
+        node->AddInput("B");
+        node->AddOutput("C");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_ScatterOps) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo data, indices, updates;
+    data.name = "Data";
+    data.shape = Shape({4, 5, 6});
+    indices.name = "Indices";
+    indices.shape = Shape({2, 3});
+    updates.name = "Updates";
+    updates.shape = Shape({2, 3, 6});
+    graph.AddInput(data);
+    graph.AddInput(indices);
+    graph.AddInput(updates);
+    
+    std::vector<std::string> ops = {"Scatter", "ScatterElements", "ScatterND"};
+    
+    for (const auto& op : ops) {
+        if (!engine.HasHandler(op, "com.microsoft")) continue;
+        
+        auto node = graph.CreateNode(op, op + "_1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("Data");
+        node->AddInput("Indices");
+        node->AddInput("Updates");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success) << "Failed for " << op;
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 3);
+        
+        graph.RemoveNode(node);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_Trilu) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input;
+    input.name = "X";
+    input.shape = Shape({4, 4});
+    graph.AddInput(input);
+    
+    auto node = graph.CreateNode("Trilu", "trilu1");
+    node->SetDomain("com.microsoft");
+    node->AddInput("X");
+    node->AddOutput("Y");
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 4);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
+}
+
+TEST(ShapeInference, MicrosoftDomain_IsAllFinite) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input;
+    input.name = "X";
+    input.shape = Shape({2, 3, 4});
+    graph.AddInput(input);
+    
+    auto node = graph.CreateNode("IsAllFinite", "is_all_finite1");
+    node->SetDomain("com.microsoft");
+    node->AddInput("X");
+    node->AddOutput("Y");
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    // Output is scalar
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 0);
+}
+
+TEST(ShapeInference, MicrosoftDomain_GridSample) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input, grid;
+    input.name = "X";
+    input.shape = Shape({1, 3, 32, 32});
+    grid.name = "Grid";
+    grid.shape = Shape({1, 16, 16, 2});
+    graph.AddInput(input);
+    graph.AddInput(grid);
+    
+    auto node = graph.CreateNode("GridSample", "grid_sample1");
+    node->SetDomain("com.microsoft");
+    node->AddInput("X");
+    node->AddInput("Grid");
+    node->AddOutput("Y");
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 4);
+}
+
+TEST(ShapeInference, MicrosoftDomain_Attention) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input;
+    input.name = "Input";
+    input.shape = Shape({2, 10, 256});  // [batch, seq_len, hidden_size]
+    graph.AddInput(input);
+    
+    if (engine.HasHandler("Attention", "com.microsoft")) {
+        auto node = graph.CreateNode("Attention", "attention1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("Input");
+        node->AddOutput("Output");
+        node->AddOutput("Present");
+        node->AddOutput("QKMatmul");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+        EXPECT_GE(result.output_shapes.size(), 1);
+    }
+    
+    if (engine.HasHandler("MultiHeadAttention", "com.microsoft")) {
+        ValueInfo q, k, v;
+        q.name = "Q"; q.shape = Shape({2, 10, 256});
+        k.name = "K"; k.shape = Shape({2, 10, 256});
+        v.name = "V"; v.shape = Shape({2, 10, 256});
+        graph.AddInput(q);
+        graph.AddInput(k);
+        graph.AddInput(v);
+        
+        auto node = graph.CreateNode("MultiHeadAttention", "mha1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("Q");
+        node->AddInput("K");
+        node->AddInput("V");
+        node->AddOutput("Output");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success);
+    }
+}
+
+TEST(ShapeInference, MicrosoftDomain_GradientOps) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo input, grad;
+    input.name = "X";
+    input.shape = Shape({2, 3, 4});
+    grad.name = "Grad";
+    grad.shape = Shape({2, 3, 4});
+    graph.AddInput(input);
+    graph.AddInput(grad);
+    
+    std::vector<std::string> ops = {"SinGrad", "CosGrad"};
+    
+    for (const auto& op : ops) {
+        if (!engine.HasHandler(op, "com.microsoft")) continue;
+        
+        auto node = graph.CreateNode(op, op + "_1");
+        node->SetDomain("com.microsoft");
+        node->AddInput("X");
+        node->AddInput("Grad");
+        node->AddOutput("Y");
+        
+        auto result = engine.InferNode(node, graph);
+        EXPECT_TRUE(result.success) << "Failed for " << op;
+        EXPECT_EQ(result.output_shapes[0].NumDims(), 3);
+        
+        graph.RemoveNode(node);
+    }
+}
+
+// ============================================================================
 // Convolution Tests
 // ============================================================================
 
@@ -858,6 +1215,15 @@ TEST(ShapeInference, SupportedOpsCount) {
     
     std::cout << "Total supported operators: " << ops.size() << std::endl;
     
-    // Should have at least 100 operators
-    EXPECT_GE(ops.size(), 100u);
+    // Print some Microsoft domain ops
+    int ms_ops = 0;
+    for (const auto& op : ops) {
+        if (op.find("com.microsoft::") == 0) {
+            ms_ops++;
+        }
+    }
+    std::cout << "Microsoft domain operators: " << ms_ops << std::endl;
+    
+    // Should have at least 150 operators (130 standard + 20+ Microsoft)
+    EXPECT_GE(ops.size(), 150u);
 }

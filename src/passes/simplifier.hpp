@@ -138,6 +138,8 @@ public:
     static int FuseGemmActivations(Graph& graph);
     static int FuseGemmBias(Graph& graph);
     static int FuseQGemmActivations(Graph& graph);
+    static int FuseMicrosoftActivations(Graph& graph);
+    static int FuseFusedOps(Graph& graph);
     
     // Main execution
     static int RunAllPasses(Graph& graph, const SimplifyOptions& options);

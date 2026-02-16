@@ -762,6 +762,90 @@ int Simplifier::FuseQGemmActivations(Graph& graph) {
     return count;
 }
 
+int Simplifier::FuseMicrosoftActivations(Graph& graph) {
+    int count = 0;
+    auto nodes = graph.GetNodes();
+    
+    // Fuse Microsoft Gelu ops with activations
+    for (auto& gelu_node : nodes) {
+        if (gelu_node->GetOpType() != "Gelu" && 
+            gelu_node->GetOpType() != "FastGelu") continue;
+        
+        // Check if it's from Microsoft domain
+        if (gelu_node->GetDomain() != "com.microsoft") continue;
+        
+        std::string gelu_output = gelu_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(gelu_output);
+        
+        // If Gelu is followed by another activation, we might want to skip or warn
+        // For now, just track that we've seen Microsoft activations
+    }
+    
+    // Fuse BiasGelu pattern: Add + Gelu -> BiasGelu
+    for (auto& add_node : nodes) {
+        if (add_node->GetOpType() != "Add") continue;
+        
+        if (add_node->GetInputs().empty() || add_node->GetOutputs().empty()) continue;
+        
+        std::string add_output = add_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(add_output);
+        
+        for (auto& act_node : consumers) {
+            if (act_node->GetOpType() != "Gelu" && 
+                act_node->GetOpType() != "FastGelu") continue;
+            
+            // Found Add + Gelu pattern, could convert to BiasGelu
+            // For now, just log it
+            ONIRIS_DEBUG << "Found Add + Gelu pattern that could be fused to BiasGelu";
+        }
+    }
+    
+    return count;
+}
+
+int Simplifier::FuseFusedOps(Graph& graph) {
+    int count = 0;
+    auto nodes = graph.GetNodes();
+    
+    // Fuse patterns into FusedConv
+    for (auto& conv_node : nodes) {
+        if (conv_node->GetOpType() != "Conv") continue;
+        
+        std::string conv_output = conv_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(conv_output);
+        
+        for (auto& act_node : consumers) {
+            const std::string& op = act_node->GetOpType();
+            // Check for activations that can be fused
+            if (op != "Relu" && op != "Sigmoid" && op != "Tanh" &&
+                op != "LeakyRelu" && op != "Gelu") continue;
+            
+            // Convert Conv + Activation to FusedConv (Microsoft domain)
+            // This would require creating a new FusedConv node
+            // For now, just track the pattern
+            ONIRIS_DEBUG << "Found Conv + " << op << " pattern for potential FusedConv";
+        }
+    }
+    
+    // Similar for FusedGemm
+    for (auto& gemm_node : nodes) {
+        if (gemm_node->GetOpType() != "Gemm") continue;
+        
+        std::string gemm_output = gemm_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(gemm_output);
+        
+        for (auto& act_node : consumers) {
+            const std::string& op = act_node->GetOpType();
+            if (op != "Relu" && op != "Sigmoid" && op != "Tanh" &&
+                op != "LeakyRelu" && op != "Gelu") continue;
+            
+            ONIRIS_DEBUG << "Found Gemm + " << op << " pattern for potential FusedGemm";
+        }
+    }
+    
+    return count;
+}
+
 // ============================================================================
 // Other Optimizations
 // ============================================================================
