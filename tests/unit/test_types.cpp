@@ -126,21 +126,61 @@ TEST(ShapeTest, ToString) {
 // =============================================================================
 
 TEST(DataTypeTest, ToString) {
-    EXPECT_EQ(DataTypeToString(DataType::kFloat32), "float32");
+    // Standard ONNX type names
+    EXPECT_EQ(DataTypeToString(DataType::kFloat), "float");
     EXPECT_EQ(DataTypeToString(DataType::kInt64), "int64");
-    EXPECT_EQ(DataTypeToString(DataType::kUnknown), "unknown");
+    EXPECT_EQ(DataTypeToString(DataType::kUndefined), "undefined");
+    EXPECT_EQ(DataTypeToString(DataType::kDouble), "double");
+    // Backward compatibility aliases
+    EXPECT_EQ(DataTypeToString(DataType::kFloat32), "float");  // alias
+    EXPECT_EQ(DataTypeToString(DataType::kFloat64), "double");  // alias
 }
 
 TEST(DataTypeTest, FromString) {
-    EXPECT_EQ(StringToDataType("float32"), DataType::kFloat32);
-    EXPECT_EQ(StringToDataType("tensor(float)"), DataType::kFloat32);
+    // Standard ONNX type names
+    EXPECT_EQ(StringToDataType("float"), DataType::kFloat);
+    EXPECT_EQ(StringToDataType("tensor(float)"), DataType::kFloat);
+    EXPECT_EQ(StringToDataType("double"), DataType::kDouble);
     EXPECT_EQ(StringToDataType("int64"), DataType::kInt64);
-    EXPECT_EQ(StringToDataType("unknown_op"), DataType::kUnknown);
+    EXPECT_EQ(StringToDataType("undefined"), DataType::kUndefined);
+    // Backward compatibility
+    EXPECT_EQ(StringToDataType("float32"), DataType::kFloat32);  // alias
+    EXPECT_EQ(StringToDataType("float64"), DataType::kFloat64);  // alias
 }
 
 TEST(DataTypeTest, GetSize) {
-    EXPECT_EQ(GetDataTypeSize(DataType::kFloat32), 4);
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat), 4);
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat32), 4);  // alias
     EXPECT_EQ(GetDataTypeSize(DataType::kInt64), 8);
     EXPECT_EQ(GetDataTypeSize(DataType::kUint8), 1);
     EXPECT_EQ(GetDataTypeSize(DataType::kString), 0);
+    EXPECT_EQ(GetDataTypeSize(DataType::kDouble), 8);
+    // FP8 types
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat8E4M3FN), 1);
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat8E5M2), 1);
+    // 4-bit types return 0 (special packed handling)
+    EXPECT_EQ(GetDataTypeSize(DataType::kUint4), 0);
+    EXPECT_EQ(GetDataTypeSize(DataType::kInt4), 0);
+}
+
+TEST(DataTypeTest, NewFP8Types) {
+    // FP8 types added in ONNX 1.14+
+    EXPECT_EQ(DataTypeToString(DataType::kFloat8E4M3FN), "float8e4m3fn");
+    EXPECT_EQ(DataTypeToString(DataType::kFloat8E4M3FNUZ), "float8e4m3fnuz");
+    EXPECT_EQ(DataTypeToString(DataType::kFloat8E5M2), "float8e5m2");
+    EXPECT_EQ(DataTypeToString(DataType::kFloat8E5M2FNUZ), "float8e5m2fnuz");
+    
+    EXPECT_EQ(StringToDataType("float8e4m3fn"), DataType::kFloat8E4M3FN);
+    EXPECT_EQ(StringToDataType("float8e5m2"), DataType::kFloat8E5M2);
+}
+
+TEST(DataTypeTest, New4BitTypes) {
+    // 4-bit types added in ONNX 1.14+
+    EXPECT_EQ(DataTypeToString(DataType::kUint4), "uint4");
+    EXPECT_EQ(DataTypeToString(DataType::kInt4), "int4");
+    EXPECT_EQ(DataTypeToString(DataType::kFloat4E2M1), "float4e2m1");
+    
+    EXPECT_EQ(StringToDataType("uint4"), DataType::kUint4);
+    EXPECT_EQ(StringToDataType("int4"), DataType::kInt4);
+    EXPECT_EQ(StringToDataType("float4e2m1"), DataType::kFloat4E2M1);
 }

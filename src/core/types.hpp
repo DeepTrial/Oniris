@@ -13,11 +13,14 @@
 namespace oniris {
 
 /**
- * @brief Data type enumeration matching ONNX types
+ * @brief Data type enumeration matching ONNX TensorProto types
+ * 
+ * Values match ONNX TensorProto.DataType enum:
+ * https://github.com/onnx/onnx/blob/main/onnx/onnx.proto3
  */
 enum class DataType {
-    kUnknown = 0,
-    kFloat32 = 1,
+    kUndefined = 0,
+    kFloat = 1,         // float32
     kUint8 = 2,
     kInt8 = 3,
     kUint16 = 4,
@@ -27,12 +30,28 @@ enum class DataType {
     kString = 8,
     kBool = 9,
     kFloat16 = 10,
-    kFloat64 = 11,
+    kDouble = 11,       // float64
     kUint32 = 12,
     kUint64 = 13,
     kComplex64 = 14,
     kComplex128 = 15,
     kBFloat16 = 16,
+    // FP8 types (ONNX 1.14+)
+    kFloat8E4M3FN = 17,
+    kFloat8E4M3FNUZ = 18,
+    kFloat8E5M2 = 19,
+    kFloat8E5M2FNUZ = 20,
+    // 4-bit integer types (ONNX 1.14+)
+    kUint4 = 21,
+    kInt4 = 22,
+    // 4-bit float type (ONNX 1.16+)
+    kFloat4E2M1 = 23,
+    // Keep kUnknown for backward compatibility
+    kUnknown = 0,
+    // Keep kFloat32 alias for backward compatibility
+    kFloat32 = 1,
+    // Keep kFloat64 alias for backward compatibility  
+    kFloat64 = 11,
 };
 
 /**

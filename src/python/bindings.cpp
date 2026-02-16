@@ -66,8 +66,8 @@ PYBIND11_MODULE(_oniris, m) {
     // ========================================================================
     
     py::enum_<DataType>(m, "DataType")
-        .value("UNKNOWN", DataType::kUnknown)
-        .value("FLOAT32", DataType::kFloat32)
+        .value("UNDEFINED", DataType::kUndefined)
+        .value("FLOAT", DataType::kFloat)
         .value("UINT8", DataType::kUint8)
         .value("INT8", DataType::kInt8)
         .value("UINT16", DataType::kUint16)
@@ -77,10 +77,25 @@ PYBIND11_MODULE(_oniris, m) {
         .value("STRING", DataType::kString)
         .value("BOOL", DataType::kBool)
         .value("FLOAT16", DataType::kFloat16)
-        .value("FLOAT64", DataType::kFloat64)
+        .value("DOUBLE", DataType::kDouble)
         .value("UINT32", DataType::kUint32)
         .value("UINT64", DataType::kUint64)
+        .value("COMPLEX64", DataType::kComplex64)
+        .value("COMPLEX128", DataType::kComplex128)
         .value("BFLOAT16", DataType::kBFloat16)
+        // FP8 types
+        .value("FLOAT8E4M3FN", DataType::kFloat8E4M3FN)
+        .value("FLOAT8E4M3FNUZ", DataType::kFloat8E4M3FNUZ)
+        .value("FLOAT8E5M2", DataType::kFloat8E5M2)
+        .value("FLOAT8E5M2FNUZ", DataType::kFloat8E5M2FNUZ)
+        // 4-bit types
+        .value("UINT4", DataType::kUint4)
+        .value("INT4", DataType::kInt4)
+        .value("FLOAT4E2M1", DataType::kFloat4E2M1)
+        // Aliases for backward compatibility
+        .value("UNKNOWN", DataType::kUnknown)
+        .value("FLOAT32", DataType::kFloat32)
+        .value("FLOAT64", DataType::kFloat64)
         .export_values();
     
     m.def("data_type_to_string", &DataTypeToString, "Convert DataType to string");
