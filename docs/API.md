@@ -215,6 +215,13 @@ options.skip_dead_node_elimination = False
 options.fail_on_unsupported = False
 options.max_iterations = 10
 
+# Fusion options
+options.fuse_conv_bn = True        # Fuse Conv + BatchNormalization
+options.fuse_conv_relu = True      # Fuse Conv + ReLU
+options.fuse_gemm_activation = True  # Fuse Gemm + Activation
+options.fuse_gemm_bias = True      # Fuse Gemm + Add (bias) into Gemm
+options.fuse_qgemm_activation = True  # Fuse QGemm + Activation
+
 result = oniris.Simplifier.simplify(model, options)
 
 print(f"Success: {result.success}")
@@ -409,6 +416,10 @@ engine.Register("CustomOp", [](const oniris::passes::InferenceContext& ctx) {
 // Run inference
 bool success = engine.InferGraph(graph, fail_on_unknown);
 success = engine.InferModel(model, fail_on_unknown);
+
+// Check supported operators
+auto ops = engine.GetSupportedOps();
+// ops now includes: "Gemm", "com.microsoft::QGemm", etc.
 ```
 
 #### Model Simplification
@@ -421,6 +432,13 @@ options.skip_constant_folding = false;
 options.skip_dead_node_elimination = false;
 options.fail_on_unsupported = false;
 options.max_iterations = 10;
+
+// Fusion options
+options.fuse_conv_bn = true;             // Fuse Conv + BatchNormalization
+options.fuse_conv_relu = true;           // Fuse Conv + ReLU
+options.fuse_gemm_activation = true;     // Fuse Gemm + Activation
+options.fuse_gemm_bias = true;           // Fuse Gemm + Add (bias) into Gemm
+options.fuse_qgemm_activation = true;    // Fuse QGemm + Activation
 
 auto result = oniris::passes::Simplifier::Simplify(model, options);
 // or

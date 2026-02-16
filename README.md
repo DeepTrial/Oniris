@@ -112,16 +112,17 @@ cd build && ctest --output-on-failure  # C++ tests
 
 ## Supported Operators
 
-Oniris supports 120+ ONNX operators including:
+Oniris supports 130+ ONNX operators including:
 
 - **Math (40+)**: Abs, Neg, Floor, Ceil, Exp, Log, Sin, Cos, Tanh, Erf, etc.
 - **Element-wise (20+)**: Add, Sub, Mul, Div, Pow, Min, Max, etc.
+- **Linear Algebra (3)**: MatMul, Gemm, QGemm (com.microsoft)
 - **Convolution (10+)**: Conv, ConvTranspose, MaxPool, AveragePool, GlobalPool
 - **Normalization (5+)**: BatchNormalization, LayerNormalization, GroupNormalization
 - **Shape (20+)**: Reshape, Transpose, Concat, Split, Squeeze, Unsqueeze, Gather
 - **Reduction (12)**: ReduceSum, ReduceMean, ReduceMax, ReduceMin, ArgMax, ArgMin
 - **Activation (20+)**: ReLU, GELU, Mish, HardSwish, Softmax, Sigmoid, etc.
-- **Quantization (8)**: QuantizeLinear, QLinearConv, QLinearMatMul, etc.
+- **Quantization (9)**: QuantizeLinear, QLinearConv, QLinearMatMul, QGemm, etc.
 
 See [API Documentation](docs/API.md) for the full list.
 

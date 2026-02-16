@@ -230,6 +230,152 @@ TEST(Simplifier, FuseGemmActivation) {
     EXPECT_EQ(graph.GetNodes().size(), 1);
 }
 
+TEST(Simplifier, FuseGemmBias) {
+    Graph graph;
+    
+    ValueInfo input;
+    input.name = "input";
+    graph.AddInput(input);
+    
+    // Add bias as constant initializer
+    ConstantTensor ct_bias;
+    ct_bias.name = "bias";
+    ct_bias.shape = Shape({64});
+    ct_bias.dtype = DataType::kFloat32;
+    graph.AddConstant("bias", ct_bias);
+    
+    auto gemm = graph.CreateNode("Gemm", "gemm1");
+    gemm->AddInput("input");
+    gemm->AddInput("weight");
+    gemm->AddOutput("gemm_out");
+    
+    auto add = graph.CreateNode("Add", "add1");
+    add->AddInput("gemm_out");
+    add->AddInput("bias");
+    add->AddOutput("output");
+    
+    ValueInfo output;
+    output.name = "output";
+    graph.AddOutput(output);
+    
+    EXPECT_EQ(graph.GetNodes().size(), 2);
+    
+    int fused = Simplifier::FuseGemmBias(graph);
+    
+    EXPECT_EQ(fused, 1);
+    EXPECT_EQ(graph.GetNodes().size(), 1);
+    EXPECT_EQ(graph.GetNodes()[0]->GetOpType(), "Gemm");
+    // Gemm should now have 3 inputs (A, B, C/bias)
+    EXPECT_EQ(graph.GetNodes()[0]->GetInputs().size(), 3);
+}
+
+TEST(Simplifier, FuseGemmBiasWith2DBias) {
+    Graph graph;
+    
+    ValueInfo input;
+    input.name = "input";
+    graph.AddInput(input);
+    
+    // Add 2D bias as constant initializer
+    ConstantTensor ct_bias;
+    ct_bias.name = "bias";
+    ct_bias.shape = Shape({32, 64});
+    ct_bias.dtype = DataType::kFloat32;
+    graph.AddConstant("bias", ct_bias);
+    
+    auto gemm = graph.CreateNode("Gemm", "gemm1");
+    gemm->AddInput("input");
+    gemm->AddInput("weight");
+    gemm->AddOutput("gemm_out");
+    
+    auto add = graph.CreateNode("Add", "add1");
+    add->AddInput("gemm_out");
+    add->AddInput("bias");
+    add->AddOutput("output");
+    
+    ValueInfo output;
+    output.name = "output";
+    graph.AddOutput(output);
+    
+    EXPECT_EQ(graph.GetNodes().size(), 2);
+    
+    int fused = Simplifier::FuseGemmBias(graph);
+    
+    EXPECT_EQ(fused, 1);
+    EXPECT_EQ(graph.GetNodes().size(), 1);
+    EXPECT_EQ(graph.GetNodes()[0]->GetOpType(), "Gemm");
+}
+
+TEST(Simplifier, FuseQGemmActivation) {
+    Graph graph;
+    
+    ValueInfo input;
+    input.name = "input";
+    graph.AddInput(input);
+    
+    auto qgemm = graph.CreateNode("QGemm", "qgemm1");
+    qgemm->SetDomain("com.microsoft");
+    qgemm->AddInput("input");
+    qgemm->AddInput("weight");
+    qgemm->AddOutput("qgemm_out");
+    
+    auto relu = graph.CreateNode("Relu", "relu1");
+    relu->AddInput("qgemm_out");
+    relu->AddOutput("output");
+    
+    ValueInfo output;
+    output.name = "output";
+    graph.AddOutput(output);
+    
+    EXPECT_EQ(graph.GetNodes().size(), 2);
+    
+    int fused = Simplifier::FuseQGemmActivations(graph);
+    
+    EXPECT_EQ(fused, 1);
+    EXPECT_EQ(graph.GetNodes().size(), 1);
+    EXPECT_EQ(graph.GetNodes()[0]->GetOpType(), "QGemm");
+}
+
+TEST(Simplifier, FuseGemmBiasDisabled) {
+    Graph graph;
+    
+    ValueInfo input;
+    input.name = "input";
+    graph.AddInput(input);
+    
+    ConstantTensor ct_bias;
+    ct_bias.name = "bias";
+    ct_bias.shape = Shape({64});
+    ct_bias.dtype = DataType::kFloat32;
+    graph.AddConstant("bias", ct_bias);
+    
+    auto gemm = graph.CreateNode("Gemm", "gemm1");
+    gemm->AddInput("input");
+    gemm->AddInput("weight");
+    gemm->AddOutput("gemm_out");
+    
+    auto add = graph.CreateNode("Add", "add1");
+    add->AddInput("gemm_out");
+    add->AddInput("bias");
+    add->AddOutput("output");
+    
+    ValueInfo output;
+    output.name = "output";
+    graph.AddOutput(output);
+    
+    EXPECT_EQ(graph.GetNodes().size(), 2);
+    
+    // Disable Gemm+Bias fusion
+    SimplifyOptions options;
+    options.fuse_gemm_bias = false;
+    options.skip_shape_inference = true;
+    
+    auto result = Simplifier::SimplifyGraph(std::make_shared<Graph>(graph), options);
+    
+    // Both nodes should still be there
+    EXPECT_EQ(graph.GetNodes().size(), 2);
+}
+
 TEST(Simplifier, FusionDisabled) {
     auto graph = std::make_shared<Graph>();
     

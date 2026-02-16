@@ -320,6 +320,8 @@ PYBIND11_MODULE(_oniris, m) {
         .def_readwrite("fuse_conv_bn", &SimplifyOptions::fuse_conv_bn)
         .def_readwrite("fuse_conv_relu", &SimplifyOptions::fuse_conv_relu)
         .def_readwrite("fuse_gemm_activation", &SimplifyOptions::fuse_gemm_activation)
+        .def_readwrite("fuse_gemm_bias", &SimplifyOptions::fuse_gemm_bias)
+        .def_readwrite("fuse_qgemm_activation", &SimplifyOptions::fuse_qgemm_activation)
         .def_readwrite("fail_on_unsupported", &SimplifyOptions::fail_on_unsupported)
         .def_readwrite("max_iterations", &SimplifyOptions::max_iterations)
         .def_readwrite("verbose", &SimplifyOptions::verbose);

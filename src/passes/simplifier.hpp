@@ -56,6 +56,12 @@ struct SimplifyOptions {
     /// Enable Gemm+Activation fusion
     bool fuse_gemm_activation = true;
     
+    /// Enable Gemm+Bias fusion (fold Add into Gemm's C input)
+    bool fuse_gemm_bias = true;
+    
+    /// Enable QGemm+Activation fusion
+    bool fuse_qgemm_activation = true;
+    
     /// Fail on unsupported ops (default: false, skip gracefully)
     bool fail_on_unsupported = false;
     
@@ -130,6 +136,8 @@ public:
     static int FuseConvBN(Graph& graph);
     static int FuseConvRelu(Graph& graph);
     static int FuseGemmActivations(Graph& graph);
+    static int FuseGemmBias(Graph& graph);
+    static int FuseQGemmActivations(Graph& graph);
     
     // Main execution
     static int RunAllPasses(Graph& graph, const SimplifyOptions& options);

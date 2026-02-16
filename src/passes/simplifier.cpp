@@ -612,6 +612,156 @@ int Simplifier::FuseGemmActivations(Graph& graph) {
     return count;
 }
 
+int Simplifier::FuseGemmBias(Graph& graph) {
+    int count = 0;
+    auto nodes = graph.GetNodes();
+    
+    for (auto& gemm_node : nodes) {
+        if (gemm_node->GetOpType() != "Gemm") continue;
+        
+        // Skip if Gemm already has bias (3 inputs)
+        int non_empty_inputs = 0;
+        for (const auto& in : gemm_node->GetInputs()) {
+            if (!in.empty()) non_empty_inputs++;
+        }
+        if (non_empty_inputs >= 3) continue;
+        
+        std::string gemm_output = gemm_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(gemm_output);
+        
+        for (auto& add_node : consumers) {
+            if (add_node->GetOpType() != "Add") continue;
+            
+            // Check if one of Add's inputs is the Gemm output
+            const auto& add_inputs = add_node->GetInputs();
+            if (add_inputs.size() < 2) continue;
+            
+            // Find the bias input (the one that's not from Gemm)
+            std::string bias_input;
+            bool found_gemm = false;
+            for (const auto& in : add_inputs) {
+                if (in == gemm_output) {
+                    found_gemm = true;
+                } else if (!in.empty()) {
+                    bias_input = in;
+                }
+            }
+            
+            if (!found_gemm || bias_input.empty()) continue;
+            
+            // Check if bias is constant (initializer or constant node)
+            bool is_const = IsConstant(graph, bias_input);
+            
+            // Get bias shape for validation
+            Shape bias_shape;
+            bool has_shape = false;
+            
+            // Try to get shape from value info
+            auto vi = graph.GetValueInfo(bias_input);
+            if (vi != nullptr) {
+                bias_shape = vi->shape;
+                has_shape = true;
+            } else {
+                // Try to get shape from constant
+                auto ct = graph.GetConstant(bias_input);
+                if (ct != nullptr) {
+                    bias_shape = ct->shape;
+                    has_shape = true;
+                } else {
+                    // Try to get shape from initializers
+                    auto init_it = graph.GetInitializers().find(bias_input);
+                    if (init_it != graph.GetInitializers().end()) {
+                        bias_shape = init_it->second.GetShape();
+                        has_shape = true;
+                    }
+                }
+            }
+            
+            if (!has_shape) continue;
+            
+            // Validate bias shape: should be 1D or broadcastable to (M, N)
+            bool valid_bias = (bias_shape.NumDims() == 1 || bias_shape.NumDims() == 2);
+            if (!valid_bias) continue;
+            
+            // Get Gemm attributes
+            auto beta_attr = gemm_node->GetAttributeAs<float>("beta");
+            float beta = beta_attr.value_or(1.0f);
+            
+            // Only fuse if beta is 1.0 (default) or if bias is constant and we can adjust
+            if (beta != 1.0f && !is_const) continue;
+            
+            // Add bias as 3rd input to Gemm
+            gemm_node->AddInput(bias_input);
+            
+            // Redirect Add's output to Gemm's output
+            std::string add_output = add_node->GetOutputs()[0];
+            for (auto& consumer : graph.GetConsumers(add_output)) {
+                for (auto& input : consumer->GetInputs()) {
+                    if (input == add_output) {
+                        input = gemm_output;
+                    }
+                }
+            }
+            
+            for (auto& go : graph.GetOutputs()) {
+                if (go.name == add_output) {
+                    go.name = gemm_output;
+                }
+            }
+            
+            graph.RemoveNode(add_node);
+            count++;
+            ONIRIS_DEBUG << "Fused Gemm + Add (bias)";
+            break;
+        }
+    }
+    
+    return count;
+}
+
+int Simplifier::FuseQGemmActivations(Graph& graph) {
+    int count = 0;
+    auto nodes = graph.GetNodes();
+    
+    for (auto& qgemm_node : nodes) {
+        // QGemm is in com.microsoft domain
+        if (qgemm_node->GetOpType() != "QGemm") continue;
+        
+        std::string qgemm_output = qgemm_node->GetOutputs()[0];
+        auto consumers = graph.GetConsumers(qgemm_output);
+        
+        for (auto& act_node : consumers) {
+            const std::string& op = act_node->GetOpType();
+            // QGemm can be fused with common activations
+            if (op != "Relu" && op != "Sigmoid" && op != "Tanh" && 
+                op != "LeakyRelu" && op != "Clip") continue;
+            
+            std::string act_output = act_node->GetOutputs()[0];
+            
+            for (auto& consumer : graph.GetConsumers(act_output)) {
+                for (auto& input : consumer->GetInputs()) {
+                    if (input == act_output) {
+                        input = qgemm_output;
+                    }
+                }
+            }
+            
+            for (auto& go : graph.GetOutputs()) {
+                if (go.name == act_output) {
+                    go.name = qgemm_output;
+                }
+            }
+            
+            graph.RemoveNode(act_node);
+            count++;
+            ONIRIS_DEBUG << "Fused QGemm + " << op;
+            break;
+        }
+    }
+    
+    return count;
+}
+
 // ============================================================================
 // Other Optimizations
 // ============================================================================
@@ -693,6 +843,12 @@ int Simplifier::RunAllPasses(Graph& graph, const SimplifyOptions& options) {
     }
     if (options.fuse_gemm_activation) {
         total_changes += FuseGemmActivations(graph);
+    }
+    if (options.fuse_gemm_bias) {
+        total_changes += FuseGemmBias(graph);
+    }
+    if (options.fuse_qgemm_activation) {
+        total_changes += FuseQGemmActivations(graph);
     }
     
     // Constant folding

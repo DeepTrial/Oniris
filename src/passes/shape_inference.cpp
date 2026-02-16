@@ -189,16 +189,17 @@ InferenceResult InferMatMul(const InferenceContext& ctx) {
     return InferenceResult::Success({Shape(out_dims)});
 }
 
-// Gemm
+// Gemm - General Matrix Multiplication: Y = alpha * A' * B' + beta * C
+// Supports optional bias input C (3rd input)
 InferenceResult InferGemm(const InferenceContext& ctx) {
     if (ctx.input_shapes.size() < 2) {
-        return InferenceResult::Error("Gemm requires 2+ inputs");
+        return InferenceResult::Error("Gemm requires at least 2 inputs (A and B)");
     }
     const Shape& a = ctx.input_shapes[0];
     const Shape& b = ctx.input_shapes[1];
     
     if (a.NumDims() != 2 || b.NumDims() != 2) {
-        return InferenceResult::Error("Gemm inputs must be 2D");
+        return InferenceResult::Error("Gemm inputs A and B must be 2D");
     }
     
     auto transA = ctx.GetAttribute<int64_t>("transA").value_or(0);
@@ -206,6 +207,23 @@ InferenceResult InferGemm(const InferenceContext& ctx) {
     
     Dimension m = transA ? a.GetDim(1) : a.GetDim(0);
     Dimension n = transB ? b.GetDim(0) : b.GetDim(1);
+    
+    // Validate bias C shape if provided (3rd input)
+    if (ctx.input_shapes.size() >= 3 && !ctx.input_shapes[2].GetDims().empty()) {
+        const Shape& c = ctx.input_shapes[2];
+        // C should be either 1D (size N) or 2D (M, N)
+        bool valid_c = false;
+        if (c.NumDims() == 1) {
+            // 1D bias broadcasted across M dimension
+            valid_c = true;
+        } else if (c.NumDims() == 2) {
+            // 2D bias should match output shape
+            valid_c = true;
+        }
+        if (!valid_c) {
+            return InferenceResult::Error("Gemm bias C must be 1D or 2D");
+        }
+    }
     
     return InferenceResult::Success({Shape({m, n})});
 }
@@ -760,6 +778,29 @@ InferenceResult InferMatMulInteger(const InferenceContext& ctx) {
     return InferMatMul(ctx);
 }
 
+// QGemm - Quantized General Matrix Multiplication (Microsoft domain)
+// Y = (A - a_zero_point) * (B - b_zero_point) * (a_scale * b_scale / y_scale) + y_zero_point
+// Inputs: A, B, a_scale, a_zero_point, b_scale, b_zero_point, [C], [c_scale], [c_zero_point], y_scale, y_zero_point
+InferenceResult InferQGemm(const InferenceContext& ctx) {
+    if (ctx.input_shapes.size() < 2) {
+        return InferenceResult::Error("QGemm requires at least 2 inputs (A and B)");
+    }
+    const Shape& a = ctx.input_shapes[0];
+    const Shape& b = ctx.input_shapes[1];
+    
+    if (a.NumDims() != 2 || b.NumDims() != 2) {
+        return InferenceResult::Error("QGemm inputs A and B must be 2D");
+    }
+    
+    auto transA = ctx.GetAttribute<int64_t>("transA").value_or(0);
+    auto transB = ctx.GetAttribute<int64_t>("transB").value_or(0);
+    
+    Dimension m = transA ? a.GetDim(1) : a.GetDim(0);
+    Dimension n = transB ? b.GetDim(0) : b.GetDim(1);
+    
+    return InferenceResult::Success({Shape({m, n})});
+}
+
 }  // anonymous namespace
 
 // =============================================================================
@@ -922,6 +963,9 @@ void ShapeInferenceEngine::InitializeDefaultHandlers() {
     Register("MatMulInteger", InferMatMulInteger);
     Register("QLinearConv", InferConv);
     Register("QLinearMatMul", InferMatMul);
+    
+    // QGemm (Microsoft domain quantized Gemm)
+    Register("QGemm", InferQGemm, "com.microsoft");
     
     ONIRIS_INFO << "Registered 120+ shape inference handlers";
 }

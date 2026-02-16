@@ -198,6 +198,122 @@ TEST(ShapeInference, Gemm) {
     EXPECT_TRUE(result.success);
     ASSERT_EQ(result.output_shapes.size(), 1);
     EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
+}
+
+TEST(ShapeInference, GemmWithBias) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b, c;
+    a.name = "A";
+    a.shape = Shape({2, 3});
+    b.name = "B";
+    b.shape = Shape({3, 4});
+    c.name = "C";
+    c.shape = Shape({4});  // 1D bias
+    graph.AddInput(a);
+    graph.AddInput(b);
+    graph.AddInput(c);
+    
+    auto node = graph.CreateNode("Gemm", "gemm1");
+    node->AddInput("A");
+    node->AddInput("B");
+    node->AddInput("C");  // bias
+    node->AddOutput("Y");
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
+}
+
+TEST(ShapeInference, GemmTransposed) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b;
+    a.name = "A";
+    a.shape = Shape({3, 2});  // Will be transposed to (2, 3)
+    b.name = "B";
+    b.shape = Shape({4, 3});  // Will be transposed to (3, 4)
+    graph.AddInput(a);
+    graph.AddInput(b);
+    
+    auto node = graph.CreateNode("Gemm", "gemm1");
+    node->AddInput("A");
+    node->AddInput("B");
+    node->AddOutput("C");
+    node->SetAttribute("transA", static_cast<int64_t>(1));
+    node->SetAttribute("transB", static_cast<int64_t>(1));
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
+}
+
+TEST(ShapeInference, QGemm) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b;
+    a.name = "A";
+    a.shape = Shape({2, 3});
+    b.name = "B";
+    b.shape = Shape({3, 4});
+    graph.AddInput(a);
+    graph.AddInput(b);
+    
+    auto node = graph.CreateNode("QGemm", "qgemm1");
+    node->SetDomain("com.microsoft");
+    node->AddInput("A");
+    node->AddInput("B");
+    node->AddOutput("C");
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
+}
+
+TEST(ShapeInference, QGemmTransposed) {
+    auto& engine = ShapeInferenceEngine::GetInstance();
+    
+    Graph graph;
+    ValueInfo a, b;
+    a.name = "A";
+    a.shape = Shape({3, 2});
+    b.name = "B";
+    b.shape = Shape({4, 3});
+    graph.AddInput(a);
+    graph.AddInput(b);
+    
+    auto node = graph.CreateNode("QGemm", "qgemm1");
+    node->SetDomain("com.microsoft");
+    node->AddInput("A");
+    node->AddInput("B");
+    node->AddOutput("C");
+    node->SetAttribute("transA", static_cast<int64_t>(1));
+    node->SetAttribute("transB", static_cast<int64_t>(1));
+    
+    auto result = engine.InferNode(node, graph);
+    
+    EXPECT_TRUE(result.success);
+    ASSERT_EQ(result.output_shapes.size(), 1);
+    EXPECT_EQ(result.output_shapes[0].NumDims(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(0).GetStaticValue(), 2);
+    EXPECT_EQ(result.output_shapes[0].GetDim(1).GetStaticValue(), 4);
 }
 
 // ============================================================================
