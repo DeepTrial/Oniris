@@ -91,7 +91,7 @@ PYBIND11_MODULE(_oniris, m) {
         // 4-bit types
         .value("UINT4", DataType::kUint4)
         .value("INT4", DataType::kInt4)
-        .value("FLOAT4E2M1", DataType::kFloat4E2M1)
+        // .value("FLOAT4E2M1", DataType::kFloat4E2M1)  // ONNX 1.17+
         // Aliases for backward compatibility
         .value("UNKNOWN", DataType::kUnknown)
         .value("FLOAT32", DataType::kFloat32)

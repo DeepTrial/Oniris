@@ -38,6 +38,22 @@ endif()
 # Find packages
 find_package(Threads REQUIRED)
 
+# Find Python for generating types from ONNX
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+# Generate types.hpp and types.cpp from ONNX TensorProto.DataType
+set(GENERATED_TYPES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
+set(TYPES_GENERATOR_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_dtypes.py)
+
+add_custom_command(
+    OUTPUT ${GENERATED_TYPES_DIR}/types.hpp ${GENERATED_TYPES_DIR}/types.cpp
+    COMMAND ${Python3_EXECUTABLE} ${TYPES_GENERATOR_SCRIPT} ${GENERATED_TYPES_DIR}
+    DEPENDS ${TYPES_GENERATOR_SCRIPT}
+    COMMENT "Generating DataType definitions from ONNX TensorProto..."
+)
+
+add_custom_target(generate_types DEPENDS ${GENERATED_TYPES_DIR}/types.hpp ${GENERATED_TYPES_DIR}/types.cpp)
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -55,6 +71,7 @@ set(ONIRIS_CORE_SOURCES
 
 # Create core library
 add_library(oniris_core STATIC ${ONIRIS_CORE_SOURCES})
+add_dependencies(oniris_core generate_types)
 target_include_directories(oniris_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
