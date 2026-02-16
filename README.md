@@ -161,6 +161,42 @@ cmake .. \
     -DBUILD_PYTHON_BINDINGS=ON
 ```
 
+### Updating ONNX Proto Version
+
+Oniris automatically downloads ONNX proto definition from GitHub during build. The proto file defines data types and IR format.
+
+**Current ONNX Proto Version**: 1.20.1 (IR_VERSION 13)
+
+**To update to a newer ONNX version:**
+
+```bash
+# Method 1: Using CMake option (recommended)
+rm -rf build
+mkdir build && cd build
+cmake .. -DONNX_PROTO_VERSION="1.21.0"
+make -j$(nproc)
+
+# Method 2: Modifying CMakeLists.txt
+# Edit CMakeLists.txt and change:
+# set(ONNX_PROTO_VERSION "1.20.1" CACHE STRING "...")
+# to desired version, then rebuild
+
+# Method 3: Using local proto file
+python3 scripts/generate_from_proto.py /path/to/onnx.proto
+make -j$(nproc)
+```
+
+**Version Compatibility:**
+
+| ONNX Version | IR_VERSION | New Data Types |
+|--------------|------------|----------------|
+| 1.14+        | 0x9        | FLOAT8E4M3FN, FLOAT8E5M2, etc. |
+| 1.15+        | 0xA        | UINT4, INT4 |
+| 1.17+        | 0xB        | FLOAT4E2M1 |
+| 1.20+        | 0xD        | FLOAT8E8M0, UINT2, INT2 |
+
+The generated `DataType` enum in `src/core/types.hpp` will automatically include all types from the specified ONNX version.
+
 ## Contributing
 
 1. Fork the repository

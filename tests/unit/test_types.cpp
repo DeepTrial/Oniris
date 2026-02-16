@@ -180,7 +180,27 @@ TEST(DataTypeTest, New4BitTypes) {
     EXPECT_EQ(DataTypeToString(DataType::kInt4), "int4");
     EXPECT_EQ(StringToDataType("uint4"), DataType::kUint4);
     EXPECT_EQ(StringToDataType("int4"), DataType::kInt4);
-    // FLOAT4E2M1 added in ONNX 1.17+
-    // EXPECT_EQ(DataTypeToString(DataType::kFloat4E2M1), "float4e2m1");
-    // EXPECT_EQ(StringToDataType("float4e2m1"), DataType::kFloat4E2M1);
+    // FLOAT4E2M1 added in ONNX 1.20+
+    EXPECT_EQ(DataTypeToString(DataType::kFloat4E2M1), "float4e2m1");
+    EXPECT_EQ(StringToDataType("float4e2m1"), DataType::kFloat4E2M1);
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat4E2M1), 0);  // 4-bit packed
 }
+
+TEST(DataTypeTest, New2BitTypes) {
+    // 2-bit types added in ONNX 1.20+ (IR_VERSION 13)
+    EXPECT_EQ(DataTypeToString(DataType::kUint2), "uint2");
+    EXPECT_EQ(DataTypeToString(DataType::kInt2), "int2");
+    EXPECT_EQ(StringToDataType("uint2"), DataType::kUint2);
+    EXPECT_EQ(StringToDataType("int2"), DataType::kInt2);
+    EXPECT_EQ(GetDataTypeSize(DataType::kUint2), 0);  // 2-bit packed
+    EXPECT_EQ(GetDataTypeSize(DataType::kInt2), 0);   // 2-bit packed
+}
+
+TEST(DataTypeTest, NewFP8E8M0) {
+    // FP8 E8M0 format added in ONNX 1.20+
+    EXPECT_EQ(DataTypeToString(DataType::kFloat8E8M0), "float8e8m0");
+    EXPECT_EQ(StringToDataType("float8e8m0"), DataType::kFloat8E8M0);
+    EXPECT_EQ(GetDataTypeSize(DataType::kFloat8E8M0), 1);  // 8-bit
+}
+
+

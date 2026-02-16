@@ -2,8 +2,8 @@
  * @file types.hpp
  * @brief Core type definitions for Oniris
  * 
- * AUTO-GENERATED from ONNX 1.16.2 TensorProto.DataType
- * Do not edit manually. Run scripts/generate_dtypes.py to regenerate.
+ * AUTO-GENERATED from ONNX proto file (IR_VERSION: 0x000000000000000D)
+ * Do not edit manually. Run scripts/generate_from_proto.py to regenerate.
  */
 
 #pragma once
@@ -17,12 +17,10 @@ namespace oniris {
 
 /**
  * @brief Data type enumeration matching ONNX TensorProto.DataType
- * 
- * ONNX Version: 1.16.2
- * Reference: https://github.com/onnx/onnx/blob/main/onnx/onnx.proto3
+ * IR_VERSION: 0x000000000000000D
  */
 enum class DataType : int {
-    // ONNX standard types (auto-generated from TensorProto.DataType)
+    // ONNX standard types (auto-generated from onnx.proto)
     kUndefined = 0,
     kFloat = 1,
     kUint8 = 2,
@@ -46,6 +44,10 @@ enum class DataType : int {
     kFloat8E5M2FNUZ = 20,
     kUint4 = 21,
     kInt4 = 22,
+    kFloat4E2M1 = 23,
+    kFloat8E8M0 = 24,
+    kUint2 = 25,
+    kInt2 = 26,
     
     // Aliases for backward compatibility
     kUnknown = kUndefined,

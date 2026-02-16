@@ -37,19 +37,37 @@ endif()
 
 # Find packages
 find_package(Threads REQUIRED)
-
-# Find Python for generating types from ONNX
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-# Generate types.hpp and types.cpp from ONNX TensorProto.DataType
+# ============================================================================
+# Third-party: ONNX Proto
+# ============================================================================
+# Download onnx.proto from GitHub for code generation
+set(ONNX_PROTO_VERSION "1.20.1" CACHE STRING "ONNX version for proto file")
+set(ONNX_PROTO_URL "https://raw.githubusercontent.com/onnx/onnx/v${ONNX_PROTO_VERSION}/onnx/onnx.proto")
+set(ONNX_PROTO_PATH ${CMAKE_CURRENT_BINARY_DIR}/third_party/onnx/onnx.proto)
+
+file(DOWNLOAD ${ONNX_PROTO_URL} ${ONNX_PROTO_PATH}
+    STATUS ONNX_DOWNLOAD_STATUS
+)
+list(GET ONNX_DOWNLOAD_STATUS 0 ONNX_DOWNLOAD_RESULT)
+if(NOT ONNX_DOWNLOAD_RESULT EQUAL 0)
+    list(GET ONNX_DOWNLOAD_STATUS 1 ONNX_DOWNLOAD_ERROR)
+    message(WARNING "Failed to download onnx.proto v${ONNX_PROTO_VERSION}: ${ONNX_DOWNLOAD_ERROR}")
+    message(WARNING "Will try to use local onnx.proto if available")
+endif()
+
+# ============================================================================
+# Generate types from ONNX proto
+# ============================================================================
 set(GENERATED_TYPES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
-set(TYPES_GENERATOR_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_dtypes.py)
+set(TYPES_GENERATOR_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_from_proto.py)
 
 add_custom_command(
     OUTPUT ${GENERATED_TYPES_DIR}/types.hpp ${GENERATED_TYPES_DIR}/types.cpp
-    COMMAND ${Python3_EXECUTABLE} ${TYPES_GENERATOR_SCRIPT} ${GENERATED_TYPES_DIR}
-    DEPENDS ${TYPES_GENERATOR_SCRIPT}
-    COMMENT "Generating DataType definitions from ONNX TensorProto..."
+    COMMAND ${Python3_EXECUTABLE} ${TYPES_GENERATOR_SCRIPT} ${ONNX_PROTO_PATH} ${GENERATED_TYPES_DIR}
+    DEPENDS ${TYPES_GENERATOR_SCRIPT} ${ONNX_PROTO_PATH}
+    COMMENT "Generating DataType definitions from onnx.proto v${ONNX_PROTO_VERSION}..."
 )
 
 add_custom_target(generate_types DEPENDS ${GENERATED_TYPES_DIR}/types.hpp ${GENERATED_TYPES_DIR}/types.cpp)

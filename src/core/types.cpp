@@ -2,8 +2,8 @@
  * @file types.cpp
  * @brief Core type implementations
  * 
- * AUTO-GENERATED from ONNX 1.16.2 TensorProto.DataType
- * Do not edit manually. Run scripts/generate_dtypes.py to regenerate.
+ * AUTO-GENERATED from ONNX proto file (IR_VERSION: 0x000000000000000D)
+ * Do not edit manually. Run scripts/generate_from_proto.py to regenerate.
  */
 
 #include "core/types.hpp"
@@ -36,6 +36,10 @@ std::string DataTypeToString(DataType dtype) {
         case DataType::kFloat8E5M2FNUZ: return "float8e5m2fnuz";
         case DataType::kUint4: return "uint4";
         case DataType::kInt4: return "int4";
+        case DataType::kFloat4E2M1: return "float4e2m1";
+        case DataType::kFloat8E8M0: return "float8e8m0";
+        case DataType::kUint2: return "uint2";
+        case DataType::kInt2: return "int2";
         default: return "undefined";
     }
 }
@@ -48,17 +52,21 @@ DataType StringToDataType(const std::string& str) {
     if (str == "double" || str == "tensor(double)") return DataType::kDouble;
     if (str == "float" || str == "tensor(float)") return DataType::kFloat;
     if (str == "float16" || str == "tensor(float16)") return DataType::kFloat16;
+    if (str == "float4e2m1" || str == "tensor(float4e2m1)") return DataType::kFloat4E2M1;
     if (str == "float8e4m3fn" || str == "tensor(float8e4m3fn)") return DataType::kFloat8E4M3FN;
     if (str == "float8e4m3fnuz" || str == "tensor(float8e4m3fnuz)") return DataType::kFloat8E4M3FNUZ;
     if (str == "float8e5m2" || str == "tensor(float8e5m2)") return DataType::kFloat8E5M2;
     if (str == "float8e5m2fnuz" || str == "tensor(float8e5m2fnuz)") return DataType::kFloat8E5M2FNUZ;
+    if (str == "float8e8m0" || str == "tensor(float8e8m0)") return DataType::kFloat8E8M0;
     if (str == "int16" || str == "tensor(int16)") return DataType::kInt16;
+    if (str == "int2" || str == "tensor(int2)") return DataType::kInt2;
     if (str == "int32" || str == "tensor(int32)") return DataType::kInt32;
     if (str == "int4" || str == "tensor(int4)") return DataType::kInt4;
     if (str == "int64" || str == "tensor(int64)") return DataType::kInt64;
     if (str == "int8" || str == "tensor(int8)") return DataType::kInt8;
     if (str == "string" || str == "tensor(string)") return DataType::kString;
     if (str == "uint16" || str == "tensor(uint16)") return DataType::kUint16;
+    if (str == "uint2" || str == "tensor(uint2)") return DataType::kUint2;
     if (str == "uint32" || str == "tensor(uint32)") return DataType::kUint32;
     if (str == "uint4" || str == "tensor(uint4)") return DataType::kUint4;
     if (str == "uint64" || str == "tensor(uint64)") return DataType::kUint64;
@@ -98,6 +106,10 @@ size_t GetDataTypeSize(DataType dtype) {
         case DataType::kFloat8E5M2FNUZ: return 1;
         case DataType::kUint4: return 0;  // 4-bit packed
         case DataType::kInt4: return 0;  // 4-bit packed
+        case DataType::kFloat4E2M1: return 0;  // 4-bit packed
+        case DataType::kFloat8E8M0: return 1;
+        case DataType::kUint2: return 0;  // 2-bit packed
+        case DataType::kInt2: return 0;  // 2-bit packed
         default: return 0;
     }
 }
