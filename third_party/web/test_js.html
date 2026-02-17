@@ -1,0 +1,20 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JS Test</title>
+</head>
+<body>
+    <div id="test"></div>
+    <script>
+        window.onerror = function(msg, url, line) {
+            document.getElementById('test').innerHTML = 'ERROR: ' + msg + ' at line ' + line;
+            return true;
+        };
+    </script>
+    <script src="/frontend/js/app.js"></script>
+    <script>
+        document.getElementById('test').innerHTML = 'JS loaded successfully';
+    </script>
+</body>
+</html>

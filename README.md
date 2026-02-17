@@ -8,8 +8,10 @@ Oniris is a high-performance ONNX model compilation and optimization toolkit wri
 
 ## Features
 
+- **🌐 Web Visualizer**: Interactive web-based model visualization with pan, zoom, and editing
 - **🔧 Model Simplification**: Simplify ONNX models similar to onnxsim, with graceful handling of unsupported layers
 - **📐 Shape Inference**: Comprehensive shape inference supporting 120+ ONNX operators with both dynamic and static shapes
+- **🛠️ Model Editing**: Add/remove layers, modify shapes via web UI or Python API
 - **🔌 Extensible Architecture**: Plugin-based system for custom layers and operations
 - **⚡ High Performance**: Core implementation in C++ with Python-friendly interfaces
 - **✅ Production Ready**: Comprehensive test suite with real ONNX models
@@ -64,6 +66,28 @@ for node in graph.get_nodes():
         print(f"{node.get_name()}: shapes inferred")
 ```
 
+### Web Visualizer
+
+Launch the interactive web-based model visualizer:
+
+```bash
+# Using the convenience script (recommended)
+./scripts/start_web.sh
+
+# Or manually
+cd third_party/web
+pip install -r requirements.txt
+python start_server.py
+
+# Open http://localhost:5000 in your browser
+```
+
+Features:
+- **Visualize** ONNX models with interactive graph rendering
+- **Navigate** large models (LLM support) with pan/zoom and minimap
+- **Edit** models visually - add/remove layers, run shape inference
+- **Export** modified models
+
 ### Custom Operators
 
 ```python
@@ -81,15 +105,25 @@ oniris.register_custom_shape_inference("MyCustomOp", my_custom_infer)
 
 ```
 Oniris/
-├── src/              # C++ source code
-│   ├── core/        # Core types and utilities
-│   ├── ir/          # Intermediate Representation
-│   ├── passes/      # Optimization passes
-│   └── python/      # Python bindings
-├── python/oniris/   # Python package
-├── tests/           # Unit and system tests
-├── examples/        # Usage examples
-└── docs/            # Documentation
+├── src/                    # C++ source code
+│   ├── core/              # Core types and utilities
+│   ├── ir/                # Intermediate Representation
+│   ├── passes/            # Optimization passes
+│   └── python/            # Python bindings
+├── python/oniris/         # Python package
+├── third_party/           # Third-party tools
+│   ├── onnx_tools/        # ONNX model modification tools (164+ operators)
+│   └── web/               # Web-based visualizer
+│       ├── backend/       # Flask API server
+│       ├── frontend/      # CSS/JS assets
+│       └── templates/     # HTML templates
+├── scripts/               # Build and utility scripts
+│   ├── build.sh
+│   ├── test.sh
+│   └── start_web.sh       # Start web visualizer
+├── tests/                 # Unit and system tests
+├── examples/              # Usage examples
+└── docs/                  # Documentation
 ```
 
 ## Documentation

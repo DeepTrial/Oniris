@@ -1,0 +1,15 @@
+# Oniris Web Visualizer Dependencies
+
+# Web Framework
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# ONNX
+onnx>=1.15.0
+onnx-simplifier>=0.4.35  # Optional, for model simplification
+
+# Core dependencies
+numpy>=1.24.0
+
+# Optional: For production deployment
+gunicorn>=21.2.0

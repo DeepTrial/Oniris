@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Oniris - ONNX Model Visualizer</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-project-diagram"></i>
+            <span>Oniris</span>
+        </div>
+        <div class="header-actions">
+            <button id="uploadBtn" class="btn btn-primary">
+                <i class="fas fa-upload"></i> Upload Model
+            </button>
+            <button id="exportBtn" class="btn btn-secondary" disabled>
+                <i class="fas fa-download"></i> Export
+            </button>
+            <button id="settingsBtn" class="btn btn-icon">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-container">
+        <!-- Left Sidebar - Tools -->
+        <aside class="sidebar sidebar-left">
+            <div class="panel">
+                <h3><i class="fas fa-info-circle"></i> Model Info</h3>
+                <div id="modelInfo" class="model-info empty">
+                    <p class="placeholder">Upload a model to see details</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-wrench"></i> Tools</h3>
+                <div class="tool-group">
+                    <button id="shapeInferenceBtn" class="tool-btn" disabled>
+                        <i class="fas fa-ruler-combined"></i>
+                        Shape Inference
+                    </button>
+                    <button id="simplifyBtn" class="tool-btn" disabled>
+                        <i class="fas fa-magic"></i>
+                        Simplify
+                    </button>
+                    <button id="addLayerBtn" class="tool-btn" disabled>
+                        <i class="fas fa-plus-circle"></i>
+                        Add Layer
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel panel-layers">
+                <h3><i class="fas fa-layer-group"></i> Layers</h3>
+                <div class="layer-filters">
+                    <input type="text" id="layerFilter" placeholder="Filter layers...">
+                    <select id="opTypeFilter">
+                        <option value="">All Types</option>
+                    </select>
+                </div>
+                <div id="layerList" class="layer-list">
+                    <p class="placeholder">No layers loaded</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center - Visualization Canvas -->
+        <main class="canvas-container">
+            <div id="toolbar" class="canvas-toolbar">
+                <div class="toolbar-group">
+                    <button id="zoomIn" class="toolbar-btn" title="Zoom In">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <span id="zoomLevel">100%</span>
+                    <button id="zoomOut" class="toolbar-btn" title="Zoom Out">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button id="fitToScreen" class="toolbar-btn" title="Fit to Screen">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                    </button>
+                    <button id="resetZoom" class="toolbar-btn" title="Reset Zoom (100%)">
+                        <i class="fas fa-crosshairs"></i>
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button id="toggleMinimap" class="toolbar-btn active" title="Toggle Minimap">
+                        <i class="fas fa-map"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="canvas" class="canvas">
+                <div id="graphContainer" class="graph-container">
+                    <svg id="graphSvg" class="graph-svg">
+                        <defs>
+                            <!-- Arrow markers for edges (Netron style) -->
+                            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5"
+                                markerUnits="strokeWidth" markerWidth="8" markerHeight="6" orient="auto">
+                                <path d="M 0 0 L 10 5 L 0 10 L 4 5 z" />
+                            </marker>
+                            <marker id="arrowhead-hover" viewBox="0 0 10 10" refX="9" refY="5"
+                                markerUnits="strokeWidth" markerWidth="8" markerHeight="6" orient="auto">
+                                <path d="M 0 0 L 10 5 L 0 10 L 4 5 z" />
+                            </marker>
+                            <marker id="arrowhead-select" viewBox="0 0 10 10" refX="9" refY="5"
+                                markerUnits="strokeWidth" markerWidth="8" markerHeight="6" orient="auto">
+                                <path d="M 0 0 L 10 5 L 0 10 L 4 5 z" />
+                            </marker>
+                        </defs>
+                        <g id="zoomLayer">
+                            <g id="edgesLayer"></g>
+                            <g id="nodesLayer"></g>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Minimap -->
+                <div id="minimap" class="minimap hidden">
+                    <svg id="minimapSvg" class="minimap-svg">
+                        <g id="minimapLayer"></g>
+                        <rect id="minimapViewport" class="minimap-viewport" />
+                    </svg>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h2>Welcome to Oniris</h2>
+                    <p>Upload an ONNX model to start visualizing</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                        Select Model File
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <span id="statusText">Ready</span>
+                <span id="nodeCount"></span>
+            </div>
+        </main>
+
+        <!-- Right Sidebar - Properties -->
+        <aside class="sidebar sidebar-right">
+            <div class="panel">
+                <h3><i class="fas fa-sliders-h"></i> Properties</h3>
+                <div id="propertiesPanel" class="properties-panel empty">
+                    <p class="placeholder">Select a node to view properties</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-eye"></i> View Options</h3>
+                <div class="view-options">
+                    <label class="checkbox">
+                        <input type="checkbox" id="showShapes" checked>
+                        <span>Show Shapes</span>
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" id="showAttributes" checked>
+                        <span>Show Attributes</span>
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" id="showInitializers">
+                        <span>Show Initializers</span>
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" id="highlightConstants" checked>
+                        <span>Highlight Constants</span>
+                    </label>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept=".onnx" style="display: none;">
+
+    <!-- Add Layer Modal -->
+    <div id="addLayerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Layer</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addLayerForm">
+                    <div class="form-group">
+                        <label>Operator Type</label>
+                        <select id="layerOpType" class="form-control" required>
+                            <option value="">Select operator...</option>
+                            <optgroup label="Common">
+                                <option value="Conv">Conv</option>
+                                <option value="Gemm">Gemm (Linear)</option>
+                                <option value="Relu">ReLU</option>
+                                <option value="MaxPool">MaxPool</option>
+                                <option value="AveragePool">AveragePool</option>
+                                <option value="BatchNormalization">BatchNorm</option>
+                                <option value="Flatten">Flatten</option>
+                                <option value="Reshape">Reshape</option>
+                            </optgroup>
+                            <optgroup label="Activations">
+                                <option value="Sigmoid">Sigmoid</option>
+                                <option value="Tanh">Tanh</option>
+                                <option value="LeakyRelu">LeakyReLU</option>
+                                <option value="Softmax">Softmax</option>
+                                <option value="Gelu">GELU</option>
+                            </optgroup>
+                            <optgroup label="Math">
+                                <option value="Add">Add</option>
+                                <option value="Mul">Mul</option>
+                                <option value="MatMul">MatMul</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Layer Name</label>
+                        <input type="text" id="layerName" class="form-control" 
+                               placeholder="e.g., conv1, fc1">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Domain</label>
+                        <select id="layerDomain" class="form-control">
+                            <option value="">Standard (ONNX)</option>
+                            <option value="com.microsoft">Microsoft</option>
+                        </select>
+                    </div>
+
+                    <div id="dynamicInputs"></div>
+
+                    <div class="form-group">
+                        <label>Attributes (JSON)</label>
+                        <textarea id="layerAttributes" class="form-control" rows="3"
+                                  placeholder='{"kernel_shape": [3, 3], "strides": [1, 1]}'></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addLayerModal')">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="confirmAddLayer">
+                    Add Layer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Settings</h3>
+                <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4>Display</h4>
+                    <div class="setting-item">
+                        <label class="checkbox">
+                            <input type="checkbox" id="settingShowShapes" checked>
+                            <span>Show Tensor Shapes on Edges</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="checkbox">
+                            <input type="checkbox" id="settingShowMinimap" checked>
+                            <span>Show Minimap</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>Default Layout</label>
+                        <select id="settingDefaultLayout" class="form-select">
+                            <option value="hierarchical" selected>Hierarchical</option>
+                            <option value="force">Force-directed</option>
+                            <option value="grid">Grid</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h4>Performance</h4>
+                    <div class="setting-item">
+                        <label class="checkbox">
+                            <input type="checkbox" id="settingOptimizedRendering" checked>
+                            <span>Optimized Rendering for Large Models (>500 nodes)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('settingsModal')">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveSettings()">
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <span id="loadingText">Processing...</span>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts - Load in order: dagre -> grapher -> app -->
+    <script src="/frontend/js/dagre.js"></script>
+    <script src="/frontend/js/netron_grapher_browser.js"></script>
+    <script src="/frontend/js/app.js"></script>
+</body>
+</html>

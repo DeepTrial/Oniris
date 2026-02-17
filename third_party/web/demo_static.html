@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oniris Visualizer - Demo</title>
+    <link rel="stylesheet" href="frontend/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-project-diagram"></i>
+            <span>Oniris</span>
+        </div>
+        <div class="header-actions">
+            <button id="demoBtn" class="btn btn-primary">
+                <i class="fas fa-play"></i> Load Demo Model
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar sidebar-left">
+            <div class="panel">
+                <h3><i class="fas fa-info-circle"></i> Model Info</h3>
+                <div id="modelInfo" class="model-info empty">
+                    <p class="placeholder">Click "Load Demo Model" to start</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-wrench"></i> Tools</h3>
+                <div class="tool-group">
+                    <button class="tool-btn" onclick="showToast('Shape inference would run here', 'info')">
+                        <i class="fas fa-ruler-combined"></i> Shape Inference
+                    </button>
+                    <button class="tool-btn" onclick="showToast('Model simplification would run here', 'info')">
+                        <i class="fas fa-magic"></i> Simplify
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-layer-group"></i> Layers</h3>
+                <div id="layerList" class="layer-list">
+                    <p class="placeholder">No layers loaded</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center - Canvas -->
+        <main class="canvas-container">
+            <div id="toolbar" class="canvas-toolbar">
+                <div class="toolbar-group">
+                    <button id="zoomIn" class="toolbar-btn" title="Zoom In">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <span id="zoomLevel">100%</span>
+                    <button id="zoomOut" class="toolbar-btn" title="Zoom Out">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button id="fitToScreen" class="toolbar-btn" title="Fit to Screen">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="canvas" class="canvas">
+                <div id="graphContainer" class="graph-container">
+                    <svg id="graphSvg" class="graph-svg">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                                    refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+                            </marker>
+                        </defs>
+                        <g id="zoomLayer">
+                            <g id="edgesLayer"></g>
+                            <g id="nodesLayer"></g>
+                        </g>
+                    </svg>
+                </div>
+
+                <div id="emptyState" class="empty-state">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h2>Oniris Web Visualizer</h2>
+                    <p>Interactive ONNX model visualization and editing</p>
+                    <button class="btn btn-primary" onclick="loadDemoModel()">
+                        Load Demo Model
+                    </button>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span id="statusText">Ready - Demo Mode</span>
+                <span id="nodeCount"></span>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="sidebar sidebar-right">
+            <div class="panel">
+                <h3><i class="fas fa-sliders-h"></i> Properties</h3>
+                <div id="propertiesPanel" class="properties-panel empty">
+                    <p class="placeholder">Select a node to view properties</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        // Demo state
+        const state = {
+            zoom: 1,
+            pan: { x: 0, y: 0 },
+            isDragging: false,
+            lastMouse: { x: 0, y: 0 },
+            nodes: [],
+            edges: [],
+            selectedNode: null
+        };
+
+        // Demo model data
+        function generateDemoModel() {
+            const nodes = [
+                { id: 'node_0', op_type: 'Conv', name: 'conv1', domain: '', 
+                  inputs: ['input'], outputs: ['conv1_out'],
+                  attributes: { kernel_shape: [3, 3], strides: [1, 1], pads: [1, 1, 1, 1] },
+                  position: { x: 0, y: 0 } },
+                { id: 'node_1', op_type: 'Relu', name: 'relu1', domain: '',
+                  inputs: ['conv1_out'], outputs: ['relu1_out'],
+                  attributes: {},
+                  position: { x: 250, y: 0 } },
+                { id: 'node_2', op_type: 'MaxPool', name: 'pool1', domain: '',
+                  inputs: ['relu1_out'], outputs: ['pool1_out'],
+                  attributes: { kernel_shape: [2, 2], strides: [2, 2] },
+                  position: { x: 500, y: 0 } },
+                { id: 'node_3', op_type: 'Conv', name: 'conv2', domain: '',
+                  inputs: ['pool1_out'], outputs: ['conv2_out'],
+                  attributes: { kernel_shape: [3, 3], strides: [1, 1], pads: [1, 1, 1, 1] },
+                  position: { x: 750, y: 0 } },
+                { id: 'node_4', op_type: 'Relu', name: 'relu2', domain: '',
+                  inputs: ['conv2_out'], outputs: ['relu2_out'],
+                  attributes: {},
+                  position: { x: 1000, y: 0 } },
+                { id: 'node_5', op_type: 'Flatten', name: 'flatten', domain: '',
+                  inputs: ['relu2_out'], outputs: ['flatten_out'],
+                  attributes: { axis: 1 },
+                  position: { x: 1250, y: 0 } },
+                { id: 'node_6', op_type: 'Gemm', name: 'fc1', domain: '',
+                  inputs: ['flatten_out'], outputs: ['output'],
+                  attributes: { transB: 1 },
+                  position: { x: 1500, y: 0 } }
+            ];
+
+            const edges = [
+                { id: 'edge_0_1', source: 'node_0', target: 'node_1', tensor: 'conv1_out' },
+                { id: 'edge_1_2', source: 'node_1', target: 'node_2', tensor: 'relu1_out' },
+                { id: 'edge_2_3', source: 'node_2', target: 'node_3', tensor: 'pool1_out' },
+                { id: 'edge_3_4', source: 'node_3', target: 'node_4', tensor: 'conv2_out' },
+                { id: 'edge_4_5', source: 'node_4', target: 'node_5', tensor: 'relu2_out' },
+                { id: 'edge_5_6', source: 'node_5', target: 'node_6', tensor: 'flatten_out' }
+            ];
+
+            return { nodes, edges };
+        }
+
+        function loadDemoModel() {
+            const data = generateDemoModel();
+            state.nodes = data.nodes;
+            state.edges = data.edges;
+            
+            // Hide empty state
+            document.getElementById('emptyState').style.display = 'none';
+            
+            // Update info
+            document.getElementById('modelInfo').innerHTML = `
+                <div class="info-row">
+                    <span class="info-label">Type</span>
+                    <span class="info-value">Demo CNN</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nodes</span>
+                    <span class="info-value">${state.nodes.length}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Edges</span>
+                    <span class="info-value">${state.edges.length}</span>
+                </div>
+            `;
+            document.getElementById('modelInfo').classList.remove('empty');
+            
+            // Render
+            renderGraph();
+            updateLayerList();
+            fitToScreen();
+            
+            showToast('Demo model loaded', 'success');
+        }
+
+        function renderGraph() {
+            const nodesLayer = document.getElementById('nodesLayer');
+            const edgesLayer = document.getElementById('edgesLayer');
+            
+            nodesLayer.innerHTML = '';
+            edgesLayer.innerHTML = '';
+            
+            // Render edges
+            state.edges.forEach(edge => {
+                const source = state.nodes.find(n => n.id === edge.source);
+                const target = state.nodes.find(n => n.id === edge.target);
+                if (!source || !target) return;
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const sx = source.position.x + 80;
+                const sy = source.position.y;
+                const tx = target.position.x - 80;
+                const ty = target.position.y;
+                const c1x = sx + (tx - sx) / 2;
+                const c2x = sx + (tx - sx) / 2;
+                
+                path.setAttribute('d', `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#64748b');
+                path.setAttribute('stroke-width', '1.5');
+                path.setAttribute('marker-end', 'url(#arrowhead)');
+                path.setAttribute('class', 'edge');
+                edgesLayer.appendChild(path);
+            });
+            
+            // Render nodes
+            state.nodes.forEach(node => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('transform', `translate(${node.position.x - 80}, ${node.position.y - 30})`);
+                g.setAttribute('class', 'node');
+                g.setAttribute('data-id', node.id);
+                g.style.cursor = 'pointer';
+                
+                g.innerHTML = `
+                    <rect width="160" height="60" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+                    <rect width="160" height="20" rx="6" fill="#3b82f6"/>
+                    <text x="80" y="14" text-anchor="middle" fill="white" font-size="11" font-weight="600">${node.op_type}</text>
+                    <text x="80" y="40" text-anchor="middle" fill="#f1f5f9" font-size="12">${node.name}</text>
+                `;
+                
+                g.addEventListener('click', () => selectNode(node));
+                nodesLayer.appendChild(g);
+            });
+            
+            document.getElementById('nodeCount').textContent = `${state.nodes.length} nodes`;
+        }
+
+        function selectNode(node) {
+            document.querySelectorAll('.node rect').forEach(r => {
+                r.setAttribute('stroke', '#475569');
+                r.setAttribute('stroke-width', '1');
+            });
+            
+            const nodeEl = document.querySelector(`.node[data-id="${node.id}"]`);
+            if (nodeEl) {
+                nodeEl.querySelector('rect').setAttribute('stroke', '#3b82f6');
+                nodeEl.querySelector('rect').setAttribute('stroke-width', '2');
+            }
+            
+            state.selectedNode = node;
+            
+            const panel = document.getElementById('propertiesPanel');
+            panel.classList.remove('empty');
+            panel.innerHTML = `
+                <div class="property-group">
+                    <h4>Basic Info</h4>
+                    <div class="property-row">
+                        <span class="property-key">Name</span>
+                        <span class="property-value">${node.name}</span>
+                    </div>
+                    <div class="property-row">
+                        <span class="property-key">Type</span>
+                        <span class="property-value">${node.op_type}</span>
+                    </div>
+                </div>
+                <div class="property-group">
+                    <h4>Attributes</h4>
+                    ${Object.entries(node.attributes).map(([k, v]) => `
+                        <div class="property-row">
+                            <span class="property-key">${k}</span>
+                            <span class="property-value">${JSON.stringify(v)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function updateLayerList() {
+            const list = document.getElementById('layerList');
+            list.innerHTML = state.nodes.map(node => `
+                <div class="layer-item" data-id="${node.id}" onclick="selectNodeById('${node.id}')">
+                    <span class="op-type">${node.op_type}</span>
+                    <span class="layer-name">${node.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function selectNodeById(id) {
+            const node = state.nodes.find(n => n.id === id);
+            if (node) selectNode(node);
+        }
+
+        // Zoom and pan
+        function zoomBy(factor) {
+            state.zoom *= factor;
+            state.zoom = Math.max(0.1, Math.min(5, state.zoom));
+            updateTransform();
+        }
+
+        function updateTransform() {
+            document.getElementById('zoomLevel').textContent = `${Math.round(state.zoom * 100)}%`;
+            document.getElementById('zoomLayer').setAttribute('transform',
+                `translate(${state.pan.x}, ${state.pan.y}) scale(${state.zoom})`);
+        }
+
+        function fitToScreen() {
+            if (!state.nodes.length) return;
+            const canvasWidth = document.getElementById('canvas').clientWidth;
+            state.zoom = Math.min(1, (canvasWidth - 100) / 1600);
+            state.pan.x = 50;
+            state.pan.y = 200;
+            updateTransform();
+        }
+
+        // Mouse handling
+        document.getElementById('canvas').addEventListener('mousedown', e => {
+            if (e.button === 0) {
+                state.isDragging = true;
+                state.lastMouse = { x: e.clientX, y: e.clientY };
+                e.target.style.cursor = 'grabbing';
+            }
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (state.isDragging) {
+                state.pan.x += e.clientX - state.lastMouse.x;
+                state.pan.y += e.clientY - state.lastMouse.y;
+                state.lastMouse = { x: e.clientX, y: e.clientY };
+                updateTransform();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            state.isDragging = false;
+        });
+
+        document.getElementById('canvas').addEventListener('wheel', e => {
+            e.preventDefault();
+            zoomBy(e.deltaY > 0 ? 0.9 : 1.1);
+        });
+
+        // Toolbar buttons
+        document.getElementById('zoomIn').addEventListener('click', () => zoomBy(1.2));
+        document.getElementById('zoomOut').addEventListener('click', () => zoomBy(0.8));
+        document.getElementById('fitToScreen').addEventListener('click', fitToScreen);
+        document.getElementById('demoBtn').addEventListener('click', loadDemoModel);
+
+        // Toast
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

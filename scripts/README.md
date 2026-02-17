@@ -12,6 +12,7 @@ This directory contains build automation scripts for Oniris.
 | `install.sh` | Install the package |
 | `package.sh` | Create distribution packages |
 | `lint.sh` | Run linters and formatters |
+| `start_web.sh` | Start the web visualizer server |
 
 ## Usage
 
@@ -111,6 +112,36 @@ This will:
 ./scripts/lint.sh python fix
 ```
 
+### Web Visualizer
+
+```bash
+# Start web visualizer (development mode)
+./scripts/start_web.sh
+
+# Production mode (requires gunicorn)
+./scripts/start_web.sh --prod
+
+# Custom port
+./scripts/start_web.sh --port 8080
+
+# Custom host and port
+./scripts/start_web.sh --host 127.0.0.1 --port 3000
+
+# Debug mode with auto-reload
+./scripts/start_web.sh --debug
+
+# Show all options
+./scripts/start_web.sh --help
+```
+
+This will start the web visualizer at `http://localhost:5000` (or your specified port).
+
+Features:
+- Interactive ONNX model visualization
+- Shape inference and model simplification
+- Add/remove layers visually
+- Export modified models
+
 ## Common Workflows
 
 ### Development Workflow
@@ -129,6 +160,21 @@ This will:
 
 # 5. Format code before committing
 ./scripts/lint.sh format
+```
+
+### Web Development Workflow
+
+```bash
+# 1. Start web server in one terminal
+./scripts/start_web.sh --debug
+
+# 2. Open http://localhost:5000 in browser
+
+# 3. Make changes to web/frontend/ files
+#    Changes are reflected immediately in debug mode
+
+# 4. Test with real models
+#    Upload .onnx files through the web interface
 ```
 
 ### Release Workflow
@@ -157,4 +203,5 @@ All scripts support `--help` to see available options:
 ./scripts/install.sh --help
 ./scripts/package.sh --help
 ./scripts/lint.sh --help
+./scripts/start_web.sh --help
 ```

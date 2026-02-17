@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Render</title>
+</head>
+<body>
+    <div id="canvas" style="width: 800px; height: 600px; border: 1px solid #ccc;">
+        <svg id="graphSvg" width="100%" height="100%">
+            <g id="zoomLayer">
+                <g id="edgesLayer"></g>
+                <g id="nodesLayer"></g>
+            </g>
+        </svg>
+    </div>
+    <div id="debug"></div>
+    
+    <script>
+        const elements = {
+            nodesLayer: document.getElementById('nodesLayer'),
+            edgesLayer: document.getElementById('edgesLayer'),
+        };
+        const debug = document.getElementById('debug');
+        
+        function log(msg) {
+            console.log(msg);
+            debug.innerHTML += msg + '<br>';
+        }
+        
+        function truncateText(text, maxLength) {
+            if (!text) return '';
+            return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+        }
+        
+        function renderNode(node) {
+            if (!node || !node.id) {
+                log('Invalid node: ' + JSON.stringify(node));
+                return;
+            }
+            
+            try {
+                const pos = node.position || { x: 0, y: 0 };
+                const width = 160;
+                const height = 60;
+                const x = pos.x - width / 2;
+                const y = pos.y - height / 2;
+                
+                log(`Rendering ${node.name} at (${x}, ${y})`);
+                
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                const safeOpType = (node.op_type || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+                g.setAttribute('class', `node node-type-${safeOpType}`);
+                g.setAttribute('data-id', node.id);
+                g.setAttribute('transform', `translate(${x + 400}, ${y + 50})`); // Center in view
+                
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('width', width);
+                rect.setAttribute('height', height);
+                rect.setAttribute('fill', '#1e293b');
+                rect.setAttribute('stroke', '#475569');
+                rect.setAttribute('rx', 6);
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', width / 2);
+                text.setAttribute('y', 35);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', 'white');
+                text.textContent = truncateText(node.name || node.id, 18);
+                
+                g.appendChild(rect);
+                g.appendChild(text);
+                elements.nodesLayer.appendChild(g);
+                
+                log(`  ✓ ${node.name} rendered`);
+            } catch (err) {
+                log(`  ✗ Error: ${err.message}`);
+            }
+        }
+        
+        // Test with sample data
+        const testNodes = [
+            {id: 'node_0', name: 'conv1', op_type: 'Conv', position: {x: 0, y: 0}},
+            {id: 'node_1', name: 'relu1', op_type: 'Relu', position: {x: 0, y: 250}},
+            {id: 'node_2', name: 'fc', op_type: 'Gemm', position: {x: 0, y: 500}},
+        ];
+        
+        log('Starting render test...');
+        testNodes.forEach(renderNode);
+        log(`\\nTotal nodes in DOM: ${elements.nodesLayer.children.length}`);
+    </script>
+</body>
+</html>
