@@ -355,6 +355,129 @@ int Simplifier::EliminateUnusedConstants(Graph& graph) {
     return changes;
 }
 
+int Simplifier::ConvertConstantsToInitializers(Graph& graph) {
+    int changes = 0;
+    auto nodes = graph.GetNodes();
+    
+    for (const auto& node : nodes) {
+        // Check if this is a Constant node
+        if (node->GetOpType() != "Constant") continue;
+        
+        // Constant node should have exactly one output
+        if (node->GetOutputs().empty()) continue;
+        const std::string& output_name = node->GetOutputs()[0];
+        
+        // Try to get the constant value from the node's attributes
+        // ONNX Constant node stores its value in one of these attributes:
+        // - value: Tensor (default)
+        // - value_float: float
+        // - value_floats: list of floats
+        // - value_int: int64
+        // - value_ints: list of int64s
+        // - value_string: string
+        // - value_strings: list of strings
+        
+        bool converted = false;
+        
+        // Try to get Tensor attribute (most common case)
+        auto tensor_attr = node->GetAttribute("value");
+        if (tensor_attr != nullptr && std::holds_alternative<Tensor>(*tensor_attr)) {
+            const Tensor& tensor = std::get<Tensor>(*tensor_attr);
+            graph.AddInitializer(output_name, tensor);
+            converted = true;
+        }
+        // Try value_float (scalar float)
+        else if (node->HasAttribute("value_float")) {
+            auto val = node->GetAttributeAs<float>("value_float");
+            if (val.has_value()) {
+                Tensor tensor(Shape({}), DataType::kFloat32);
+                tensor.GetData().resize(sizeof(float));
+                std::memcpy(tensor.GetData().data(), &(*val), sizeof(float));
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        // Try value_floats (1D float tensor)
+        else if (node->HasAttribute("value_floats")) {
+            auto vals = node->GetAttributeAs<std::vector<float>>("value_floats");
+            if (vals.has_value()) {
+                Tensor tensor(Shape({static_cast<int64_t>(vals->size())}), DataType::kFloat32);
+                tensor.GetData().resize(vals->size() * sizeof(float));
+                std::memcpy(tensor.GetData().data(), vals->data(), vals->size() * sizeof(float));
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        // Try value_int (scalar int64)
+        else if (node->HasAttribute("value_int")) {
+            auto val = node->GetAttributeAs<int64_t>("value_int");
+            if (val.has_value()) {
+                Tensor tensor(Shape({}), DataType::kInt64);
+                tensor.GetData().resize(sizeof(int64_t));
+                std::memcpy(tensor.GetData().data(), &(*val), sizeof(int64_t));
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        // Try value_ints (1D int64 tensor)
+        else if (node->HasAttribute("value_ints")) {
+            auto vals = node->GetAttributeAs<std::vector<int64_t>>("value_ints");
+            if (vals.has_value()) {
+                Tensor tensor(Shape({static_cast<int64_t>(vals->size())}), DataType::kInt64);
+                tensor.GetData().resize(vals->size() * sizeof(int64_t));
+                std::memcpy(tensor.GetData().data(), vals->data(), vals->size() * sizeof(int64_t));
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        // Try value_string (scalar string)
+        else if (node->HasAttribute("value_string")) {
+            auto val = node->GetAttributeAs<std::string>("value_string");
+            if (val.has_value()) {
+                Tensor tensor(Shape({}), DataType::kString);
+                // Store string as bytes in tensor data
+                tensor.GetData().resize(val->size());
+                std::memcpy(tensor.GetData().data(), val->data(), val->size());
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        // Try value_strings (1D string tensor)
+        else if (node->HasAttribute("value_strings")) {
+            auto vals = node->GetAttributeAs<std::vector<std::string>>("value_strings");
+            if (vals.has_value()) {
+                Tensor tensor(Shape({static_cast<int64_t>(vals->size())}), DataType::kString);
+                // For simplicity, store as a single concatenated string with null separators
+                // This is a simplified implementation
+                size_t total_size = 0;
+                for (const auto& s : *vals) {
+                    total_size += s.size() + 1;
+                }
+                tensor.GetData().resize(total_size);
+                size_t offset = 0;
+                for (const auto& s : *vals) {
+                    std::memcpy(tensor.GetData().data() + offset, s.data(), s.size());
+                    offset += s.size();
+                    tensor.GetData()[offset++] = '\0';
+                }
+                graph.AddInitializer(output_name, tensor);
+                converted = true;
+            }
+        }
+        
+        if (converted) {
+            // Remove the Constant node and update consumers
+            // Consumers should now read from the initializer instead
+            // The output tensor name remains the same
+            graph.RemoveNode(node);
+            changes++;
+            ONIRIS_DEBUG << "Converted Constant node to initializer: " << node->GetName();
+        }
+    }
+    
+    return changes;
+}
+
 // ============================================================================
 // Constant Folding
 // ============================================================================
@@ -933,6 +1056,11 @@ int Simplifier::RunAllPasses(Graph& graph, const SimplifyOptions& options) {
     }
     if (options.fuse_qgemm_activation) {
         total_changes += FuseQGemmActivations(graph);
+    }
+    
+    // Convert Constant nodes to initializers
+    if (!options.skip_constant_to_initializer) {
+        total_changes += ConvertConstantsToInitializers(graph);
     }
     
     // Constant folding

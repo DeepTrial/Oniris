@@ -26,6 +26,9 @@ struct SimplifyOptions {
     /// Skip constant folding
     bool skip_constant_folding = false;
     
+    /// Skip converting Constant nodes to initializers
+    bool skip_constant_to_initializer = false;
+    
     /// Skip dead node elimination
     bool skip_dead_node_elimination = false;
     
@@ -129,6 +132,7 @@ public:
     static int EliminateNopResize(Graph& graph);
     static int EliminateSingleInputConcat(Graph& graph);
     static int EliminateUnusedConstants(Graph& graph);
+    static int ConvertConstantsToInitializers(Graph& graph);
     static int SimplifyShapeOps(Graph& graph);
     static int MergeConsecutiveOps(Graph& graph);
     

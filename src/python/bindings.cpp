@@ -325,6 +325,7 @@ PYBIND11_MODULE(_oniris, m) {
         .def(py::init<>())
         .def_readwrite("skip_shape_inference", &SimplifyOptions::skip_shape_inference)
         .def_readwrite("skip_constant_folding", &SimplifyOptions::skip_constant_folding)
+        .def_readwrite("skip_constant_to_initializer", &SimplifyOptions::skip_constant_to_initializer)
         .def_readwrite("skip_dead_node_elimination", &SimplifyOptions::skip_dead_node_elimination)
         .def_readwrite("skip_identity_elimination", &SimplifyOptions::skip_identity_elimination)
         .def_readwrite("skip_shape_ops_simplification", &SimplifyOptions::skip_shape_ops_simplification)

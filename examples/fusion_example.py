@@ -124,6 +124,7 @@ def test_all_simplification_options():
     boolean_options = [
         "skip_shape_inference",
         "skip_constant_folding",
+        "skip_constant_to_initializer",
         "skip_dead_node_elimination",
         "skip_identity_elimination",
         "skip_shape_ops_simplification",
