@@ -25,6 +25,7 @@ set(TEST_SOURCES
     test_ir.cpp
     test_shape_inference.cpp
     test_simplifier.cpp
+    test_onnx_matcher_style.cpp
 )
 
 add_executable(oniris_tests ${TEST_SOURCES})

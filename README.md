@@ -11,6 +11,7 @@ Oniris is a high-performance ONNX model compilation and optimization toolkit wri
 - **🌐 Web Visualizer**: Interactive web-based model visualization with pan, zoom, and editing
 - **🔧 Model Simplification**: Simplify ONNX models similar to onnxsim, with graceful handling of unsupported layers
 - **📐 Shape Inference**: Comprehensive shape inference supporting 165+ ONNX operators with both dynamic and static shapes
+- **🔍 Subgraph Matching**: Find and match subgraph patterns with flexible topology and attribute constraints
 - **🛠️ Model Editing**: Add/remove layers, modify shapes via web UI or Python API
 - **🔌 Extensible Architecture**: Plugin-based system for custom layers and operations
 - **⚡ High Performance**: Core implementation in C++ with Python-friendly interfaces
@@ -107,6 +108,31 @@ Features:
 - **Edit** models visually - add/remove layers, run shape inference
 - **Export** modified models
 
+### Subgraph Matching
+
+Find and match subgraph patterns in ONNX models using **tensor-flow based patterns** (inspired by onnx_matcher):
+
+For activation fusion patterns and tensor-flow based matching:
+
+```python
+# Swish activation: x * sigmoid(x)
+pattern = oniris.OnnxMatcherPattern.from_string("""
+    Conv(?, c0)
+    Sigmoid(c0, s0)
+    Mul([s0, c0], ?)
+""")
+
+matches = oniris.Matcher.find_all(model, pattern)
+```
+
+**Syntax:**
+- `OpType(input, output)` - Basic node
+- `Conv/Pool(?, c0)` - Match Conv OR Pool
+- `?(?, ?)` - Wildcard for any op type
+- `[a, b]` - Multi-input/output
+
+See [ONNX Matcher Style](docs/ONNX_MATCHER_STYLE.md) for details.
+
 ### ONNX Tools (Model Modification)
 
 ```python
@@ -190,7 +216,8 @@ Oniris/
 │   │   └── tensor.hpp
 │   ├── passes/            # Optimization passes
 │   │   ├── shape_inference.cpp/hpp  # 165+ operators
-│   │   └── simplifier.cpp/hpp       # Model simplification
+│   │   ├── simplifier.cpp/hpp       # Model simplification
+│   │   └── onnx_matcher_style.cpp/hpp # Tensor-flow based pattern matching
 │   ├── python/            # Python bindings (pybind11)
 │   │   └── bindings.cpp
 │   └── utils/             # ONNX utilities
@@ -232,11 +259,13 @@ Oniris/
 │       ├── test_onnx_tools.py
 │       └── test_onnx_tools_layer_builder.py
 ├── examples/              # Usage examples
-│   ├── simple_example.py  # Basic API usage
-│   └── fusion_example.py  # Fusion control demo
+│   ├── simple_example.py           # Basic API usage
+│   ├── fusion_example.py           # Fusion control demo
+│   └── onnx_matcher_style_example.py # ONNX matcher pattern matching demo
 ├── docs/                  # Documentation
 │   ├── QUICKSTART.md      # Quick start guide
 │   ├── API.md             # Complete API reference
+│   ├── ONNX_MATCHER_STYLE.md # Tensor-flow based pattern matching spec
 │   ├── PROJECT_SUMMARY.md # Architecture overview
 │   └── AGENTS.md          # Development guidelines
 ├── requirements.txt       # Python dependencies
@@ -326,6 +355,7 @@ See `third_party/web/README.md` for detailed documentation.
 
 - [Quick Start Guide](docs/QUICKSTART.md) - Get started with Oniris
 - [API Documentation](docs/API.md) - Complete API reference
+- [ONNX Matcher Style](docs/ONNX_MATCHER_STYLE.md) - Tensor-flow based subgraph pattern matching
 - [Project Summary](docs/PROJECT_SUMMARY.md) - Architecture and design overview
 - [Agent Guidelines](docs/AGENTS.md) - Development guidelines
 - [Build Scripts](scripts/README.md) - Build system documentation

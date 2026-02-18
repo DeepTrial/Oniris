@@ -38,6 +38,10 @@ from ._oniris import (
     Simplifier,
     InferenceResult,
     
+    # Subgraph Matching (ONNX Matcher Style)
+    OnnxMatcherPattern,
+    OnnxMatcherStyleMatcher,
+    
     # Utils
     load_model,
     save_model,
@@ -47,6 +51,9 @@ from ._oniris import (
     print_model_summary,
     simplify,
 )
+
+# Alias for convenience
+Matcher = OnnxMatcherStyleMatcher
 
 __version__ = "0.1.0"
 __all__ = [
@@ -73,6 +80,11 @@ __all__ = [
     "SimplifyResult",
     "Simplifier",
     "InferenceResult",
+    
+    # Subgraph Matching (ONNX Matcher Style)
+    "OnnxMatcherPattern",
+    "OnnxMatcherStyleMatcher",
+    "Matcher",  # Python alias
     
     # Utils
     "load_model",

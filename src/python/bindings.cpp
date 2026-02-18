@@ -15,6 +15,7 @@
 #include "ir/tensor.hpp"
 #include "passes/shape_inference.hpp"
 #include "passes/simplifier.hpp"
+#include "passes/onnx_matcher_style.hpp"
 #include "utils/onnx_utils.hpp"
 
 namespace py = pybind11;
@@ -357,6 +358,59 @@ PYBIND11_MODULE(_oniris, m) {
                     py::arg("model"), py::arg("options") = SimplifyOptions())
         .def_static("simplify_graph", &Simplifier::SimplifyGraph,
                     py::arg("graph"), py::arg("options") = SimplifyOptions());
+    
+    // ========================================================================
+    // ========================================================================
+    // ONNX Matcher Style (Tensor-flow based patterns)
+    // ========================================================================
+    
+    // OnnxMatcherPattern
+    py::class_<OnnxMatcherPattern>(m, "OnnxMatcherPattern")
+        .def_static("from_string", [](const std::string& pattern_str) {
+            return OnnxMatcherPattern::FromString(pattern_str);
+        }, py::arg("pattern_str"),
+             R"(Parse pattern in onnx_matcher style.
+
+Syntax:
+  OpType(input_tensors, output_tensors)
+  OpType1/OpType2(input, output)
+  ?(input, output)  # wildcard for any op type
+
+Special:
+  ?  - matches any tensor or op type
+  [a, b] - list of tensors
+
+Examples:
+  # Conv -> Sigmoid -> Mul (Swish activation)
+  Conv(?, c0)
+  Sigmoid(c0, s0)
+  Mul([s0, c0], ?)
+  
+  # Conv/Pool with any input
+  Conv/Pool(?, output)
+  
+  # Multi-head attention pattern
+  MatMul(?, q)
+  MatMul(?, k)
+  MatMul(?, v)
+  MatMul([q, k], qk)
+  Softmax(qk, attn)
+  MatMul([attn, v], out)
+)");
+    
+    // OnnxMatcherStyleMatcher
+    py::class_<OnnxMatcherStyleMatcher>(m, "OnnxMatcherStyleMatcher")
+        .def_static("find_all", &OnnxMatcherStyleMatcher::FindAll,
+                    py::arg("model"), py::arg("pattern"),
+                    "Find all matches using onnx_matcher style pattern")
+        .def_static("find_first", &OnnxMatcherStyleMatcher::FindFirst,
+                    py::arg("model"), py::arg("pattern"),
+                    "Find first match using onnx_matcher style pattern")
+        .def_static("has_match", &OnnxMatcherStyleMatcher::HasMatch,
+                    py::arg("model"), py::arg("pattern"),
+                    "Check if pattern exists");
+    
+    // Note: Use OnnxMatcherStyleMatcher directly, or alias it in Python
     
     // ========================================================================
     // Utils
