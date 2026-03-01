@@ -8,6 +8,8 @@ Oniris is a high-performance ONNX model compilation and optimization toolkit wri
 
 ## Features
 
+- **🚀 Model Compiler**: Complete compilation pipeline from ONNX model → optimization → shape inference → pattern matching → JSON output
+- **📋 Pattern Manager**: Unified pattern management system with categorization, import/export, and global registry
 - **🌐 Web Visualizer**: Interactive web-based model visualization with pan, zoom, and editing
 - **🔧 Model Simplification**: Simplify ONNX models similar to onnxsim, with graceful handling of unsupported layers
 - **📐 Shape Inference**: Comprehensive shape inference supporting 165+ ONNX operators with both dynamic and static shapes
@@ -35,6 +37,40 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 cd ..
 pip install -e .
+```
+
+### ONNX Model Compiler
+
+The Model Compiler provides a complete compilation pipeline with JSON output:
+
+```python
+import oniris
+
+# Create compiler and define patterns
+compiler = oniris.Compiler()
+compiler.add_pattern("ConvRelu", """
+    Conv(?, c0)
+    Relu(c0, ?)
+""")
+
+# Or use built-in common patterns
+compiler.add_patterns(oniris.get_common_patterns())
+
+# Compile a model
+options = oniris.CompilerOptions()
+options.verbose = True
+options.save_json_result = True
+options.json_output_path = "result.json"
+
+result = compiler.compile_file("input.onnx", "output_optimized.onnx", options)
+
+# Access compilation results
+print(f"Duration: {result.duration_ms:.2f} ms")
+print(f"Pattern matches: {result.pattern_matching_summary.total_matches}")
+
+# Get JSON output
+json_str = result.to_json(pretty=True)
+print(json_str)
 ```
 
 ### Simplify an ONNX Model
@@ -354,6 +390,8 @@ See `third_party/web/README.md` for detailed documentation.
 ## Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md) - Get started with Oniris
+- [Model Compiler](docs/COMPILER.md) - ONNX Model Compiler documentation
+- [Pattern Manager](docs/PATTERN_MANAGER.md) - Unified pattern management system
 - [API Documentation](docs/API.md) - Complete API reference
 - [ONNX Matcher Style](docs/ONNX_MATCHER_STYLE.md) - Tensor-flow based subgraph pattern matching
 - [Project Summary](docs/PROJECT_SUMMARY.md) - Architecture and design overview

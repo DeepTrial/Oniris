@@ -16,6 +16,8 @@
 #include "passes/shape_inference.hpp"
 #include "passes/simplifier.hpp"
 #include "passes/onnx_matcher_style.hpp"
+#include "passes/compiler.hpp"
+#include "passes/pattern_manager.hpp"
 #include "utils/onnx_utils.hpp"
 
 namespace py = pybind11;
@@ -411,6 +413,317 @@ Examples:
                     "Check if pattern exists");
     
     // Note: Use OnnxMatcherStyleMatcher directly, or alias it in Python
+    
+    // ========================================================================
+    // Model Compiler
+    // ========================================================================
+    
+    // PatternMatchType enum
+    py::enum_<PatternMatchType>(m, "PatternMatchType")
+        .value("FIRST", PatternMatchType::kFirst, "Stop at first match")
+        .value("ALL", PatternMatchType::kAll, "Find all matches")
+        .value("COUNT_ONLY", PatternMatchType::kCountOnly, "Just count matches")
+        .export_values();
+    
+    // PatternDefinition
+    py::class_<PatternDefinition>(m, "PatternDefinition")
+        .def(py::init<>())
+        .def(py::init<const std::string&, const std::string&>(),
+             py::arg("name"), py::arg("pattern_string"),
+             "Create pattern definition with name and pattern string")
+        .def_readwrite("name", &PatternDefinition::name)
+        .def_readwrite("pattern_string", &PatternDefinition::pattern_string)
+        .def("parse", &PatternDefinition::Parse, 
+             py::arg("error_msg") = py::none(),
+             "Parse the pattern string")
+        .def_static("from_string", [](const std::string& name, const std::string& pattern) {
+            return PatternDefinition(name, pattern);
+        }, py::arg("name"), py::arg("pattern_string"));
+    
+    // MatchedNodeInfo
+    py::class_<MatchedNodeInfo>(m, "MatchedNodeInfo")
+        .def_readonly("node_name", &MatchedNodeInfo::node_name)
+        .def_readonly("op_type", &MatchedNodeInfo::op_type)
+        .def_readonly("domain", &MatchedNodeInfo::domain)
+        .def_readonly("inputs", &MatchedNodeInfo::inputs)
+        .def_readonly("outputs", &MatchedNodeInfo::outputs)
+        .def_readonly("input_shapes", &MatchedNodeInfo::input_shapes)
+        .def_readonly("output_shapes", &MatchedNodeInfo::output_shapes);
+    
+    // PatternMatchResult
+    py::class_<PatternMatchResult>(m, "PatternMatchResult")
+        .def_readonly("pattern_name", &PatternMatchResult::pattern_name)
+        .def_readonly("match_id", &PatternMatchResult::match_id)
+        .def_readonly("nodes", &PatternMatchResult::nodes)
+        .def_readonly("tensor_bindings", &PatternMatchResult::tensor_bindings)
+        .def_readonly("node_mapping", &PatternMatchResult::node_mapping);
+    
+    // PatternMatchingSummary
+    py::class_<PatternMatchingSummary>(m, "PatternMatchingSummary")
+        .def_readonly("total_patterns", &PatternMatchingSummary::total_patterns)
+        .def_readonly("patterns_with_matches", &PatternMatchingSummary::patterns_with_matches)
+        .def_readonly("total_matches", &PatternMatchingSummary::total_matches)
+        .def_readonly("match_counts", &PatternMatchingSummary::match_counts)
+        .def_readonly("pattern_results", &PatternMatchingSummary::pattern_results);
+    
+    // OptimizationStats
+    py::class_<OptimizationStats>(m, "OptimizationStats")
+        .def_readonly("success", &OptimizationStats::success)
+        .def_readonly("error_msg", &OptimizationStats::error_msg)
+        .def_readonly("num_iterations", &OptimizationStats::num_iterations)
+        .def_readonly("num_changes", &OptimizationStats::num_changes)
+        .def_readonly("pass_stats", &OptimizationStats::pass_stats)
+        .def_readonly("unsupported_ops", &OptimizationStats::unsupported_ops);
+    
+    // ShapeInferenceStats
+    py::class_<ShapeInferenceStats>(m, "ShapeInferenceStats")
+        .def_readonly("success", &ShapeInferenceStats::success)
+        .def_readonly("error_msg", &ShapeInferenceStats::error_msg)
+        .def_readonly("num_nodes_processed", &ShapeInferenceStats::num_nodes_processed)
+        .def_readonly("num_nodes_failed", &ShapeInferenceStats::num_nodes_failed)
+        .def_readonly("failed_nodes", &ShapeInferenceStats::failed_nodes);
+    
+    // ModelSummary
+    py::class_<ModelSummary>(m, "ModelSummary")
+        .def_readonly("producer_name", &ModelSummary::producer_name)
+        .def_readonly("producer_version", &ModelSummary::producer_version)
+        .def_readonly("ir_version", &ModelSummary::ir_version)
+        .def_readonly("opset_version", &ModelSummary::opset_version)
+        .def_readonly("num_nodes", &ModelSummary::num_nodes)
+        .def_readonly("num_initializers", &ModelSummary::num_initializers)
+        .def_readonly("num_inputs", &ModelSummary::num_inputs)
+        .def_readonly("num_outputs", &ModelSummary::num_outputs)
+        .def_readonly("op_types_used", &ModelSummary::op_types_used)
+        .def_readonly("op_type_counts", &ModelSummary::op_type_counts);
+    
+    // CompilationResult
+    py::class_<CompilationResult>(m, "CompilationResult")
+        .def_readonly("success", &CompilationResult::success)
+        .def_readonly("error_msg", &CompilationResult::error_msg)
+        .def_readonly("input_path", &CompilationResult::input_path)
+        .def_readonly("output_path", &CompilationResult::output_path)
+        .def_readonly("model_info", &CompilationResult::model_info)
+        .def_readonly("optimization_stats", &CompilationResult::optimization_stats)
+        .def_readonly("shape_inference_stats", &CompilationResult::shape_inference_stats)
+        .def_readonly("pattern_matching_summary", &CompilationResult::pattern_matching_summary)
+        .def_readonly("start_time", &CompilationResult::start_time)
+        .def_readonly("end_time", &CompilationResult::end_time)
+        .def_readonly("duration_ms", &CompilationResult::duration_ms)
+        .def("to_json", &CompilationResult::ToJson, 
+             py::arg("pretty") = true,
+             "Serialize result to JSON string")
+        .def("save_json", &CompilationResult::SaveJson,
+             py::arg("filepath"), py::arg("pretty") = true,
+             "Save result to JSON file");
+    
+    // CompilerOptions
+    py::class_<CompilerOptions>(m, "CompilerOptions")
+        .def(py::init<>())
+        .def_readwrite("simplify_options", &CompilerOptions::simplify_options)
+        .def_readwrite("enable_optimization", &CompilerOptions::enable_optimization)
+        .def_readwrite("enable_shape_inference", &CompilerOptions::enable_shape_inference)
+        .def_readwrite("fail_on_unknown_shape", &CompilerOptions::fail_on_unknown_shape)
+        .def_readwrite("enable_pattern_matching", &CompilerOptions::enable_pattern_matching)
+        .def_readwrite("match_type", &CompilerOptions::match_type)
+        .def_readwrite("max_matches_per_pattern", &CompilerOptions::max_matches_per_pattern)
+        .def_readwrite("pattern_match_before_opt", &CompilerOptions::pattern_match_before_opt)
+        .def_readwrite("save_optimized_model", &CompilerOptions::save_optimized_model)
+        .def_readwrite("save_json_result", &CompilerOptions::save_json_result)
+        .def_readwrite("json_output_path", &CompilerOptions::json_output_path)
+        .def_readwrite("verbose", &CompilerOptions::verbose);
+    
+    // ModelCompiler
+    py::class_<ModelCompiler>(m, "ModelCompiler")
+        .def(py::init<>())
+        .def("add_pattern", py::overload_cast<const PatternDefinition&>(&ModelCompiler::AddPattern),
+             py::arg("pattern"),
+             "Add a pattern to match")
+        .def("add_pattern", py::overload_cast<const std::string&, const std::string&>(&ModelCompiler::AddPattern),
+             py::arg("name"), py::arg("pattern_string"),
+             "Add a pattern by name and string")
+        .def("add_patterns", &ModelCompiler::AddPatterns,
+             py::arg("patterns"),
+             "Add multiple patterns")
+        .def("clear_patterns", &ModelCompiler::ClearPatterns,
+             "Clear all patterns")
+        .def("get_pattern_count", &ModelCompiler::GetPatternCount,
+             "Get number of registered patterns")
+        .def("get_pattern_names", &ModelCompiler::GetPatternNames,
+             "Get registered pattern names")
+        .def("compile", &ModelCompiler::Compile,
+             py::arg("input_path"),
+             py::arg("output_path") = "",
+             py::arg("options") = CompilerOptions(),
+             "Compile a model file")
+        .def("compile_model", &ModelCompiler::CompileModel,
+             py::arg("model"),
+             py::arg("options") = CompilerOptions(),
+             "Compile a model object")
+        .def("run_pattern_matching", &ModelCompiler::RunPatternMatching,
+             py::arg("model"),
+             py::arg("match_type") = PatternMatchType::kAll,
+             "Run only pattern matching");
+    
+    // Convenience functions
+    m.def("compile_model", py::overload_cast<const std::string&, const std::string&, 
+          const std::vector<PatternDefinition>&, const CompilerOptions&>(
+          &CompileModel),
+          py::arg("input_path"),
+          py::arg("output_path") = "",
+          py::arg("patterns") = std::vector<PatternDefinition>{},
+          py::arg("options") = CompilerOptions{},
+          "Compile a model with patterns and options");
+    
+    m.def("get_common_patterns", &GetCommonPatterns,
+          "Get common pattern definitions for typical fusion patterns");
+    
+    // ========================================================================
+    // Pattern Manager
+    // ========================================================================
+    
+    // PatternCategory enum
+    py::enum_<PatternCategory>(m, "PatternCategory")
+        .value("FUSION", PatternCategory::kFusion, "Operator fusion patterns")
+        .value("OPTIMIZATION", PatternCategory::kOptimization, "Optimization patterns")
+        .value("QUANTIZATION", PatternCategory::kQuantization, "Quantization patterns")
+        .value("CUSTOM", PatternCategory::kCustom, "User-defined patterns")
+        .value("ANALYSIS", PatternCategory::kAnalysis, "Analysis patterns")
+        .value("ALL", PatternCategory::kAll, "All categories")
+        .export_values();
+    
+    // PatternMetadata
+    py::class_<PatternMetadata>(m, "PatternMetadata")
+        .def(py::init<>())
+        .def_readwrite("name", &PatternMetadata::name)
+        .def_readwrite("description", &PatternMetadata::description)
+        .def_readwrite("author", &PatternMetadata::author)
+        .def_readwrite("version", &PatternMetadata::version)
+        .def_readwrite("category", &PatternMetadata::category)
+        .def_readwrite("tags", &PatternMetadata::tags)
+        .def_readwrite("attributes", &PatternMetadata::attributes)
+        .def_readwrite("created_at", &PatternMetadata::created_at)
+        .def_readwrite("modified_at", &PatternMetadata::modified_at)
+        .def_readwrite("enabled", &PatternMetadata::enabled)
+        .def_readwrite("priority", &PatternMetadata::priority)
+        .def("is_valid", &PatternMetadata::IsValid);
+    
+    // ManagedPattern
+    py::class_<ManagedPattern>(m, "ManagedPattern")
+        .def(py::init<>())
+        .def(py::init<const std::string&, const std::string&, PatternCategory>(),
+             py::arg("name"), py::arg("pattern_string"), 
+             py::arg("category") = PatternCategory::kCustom)
+        .def_readwrite("metadata", &ManagedPattern::metadata)
+        .def_readwrite("definition", &ManagedPattern::definition)
+        .def("is_valid", &ManagedPattern::IsValid)
+        .def("get_unique_id", &ManagedPattern::GetUniqueId);
+    
+    // PatternQuery
+    py::class_<PatternQuery>(m, "PatternQuery")
+        .def(py::init<>())
+        .def_readwrite("category", &PatternQuery::category)
+        .def_readwrite("tags", &PatternQuery::tags)
+        .def_readwrite("name_contains", &PatternQuery::name_contains)
+        .def_readwrite("enabled_only", &PatternQuery::enabled_only)
+        .def_readwrite("min_priority", &PatternQuery::min_priority)
+        .def_readwrite("max_priority", &PatternQuery::max_priority);
+    
+    // PatternStatistics
+    py::class_<PatternStatistics>(m, "PatternStatistics")
+        .def_readonly("total_patterns", &PatternStatistics::total_patterns)
+        .def_readonly("enabled_patterns", &PatternStatistics::enabled_patterns)
+        .def_readonly("valid_patterns", &PatternStatistics::valid_patterns)
+        .def_readonly("invalid_patterns", &PatternStatistics::invalid_patterns)
+        .def_readonly("category_counts", &PatternStatistics::category_counts)
+        .def_readonly("tag_counts", &PatternStatistics::tag_counts);
+    
+    // PatternCollection
+    py::class_<PatternCollection>(m, "PatternCollection")
+        .def(py::init<>())
+        .def_readwrite("name", &PatternCollection::name)
+        .def_readwrite("description", &PatternCollection::description)
+        .def_readwrite("version", &PatternCollection::version)
+        .def_readwrite("patterns", &PatternCollection::patterns)
+        .def_readwrite("metadata", &PatternCollection::metadata)
+        .def("to_json", &PatternCollection::ToJson, py::arg("pretty") = true)
+        .def("save_to_file", &PatternCollection::SaveToFile, 
+             py::arg("filepath"), py::arg("pretty") = true)
+        .def_static("from_json", &PatternCollection::FromJson, py::arg("json_str"))
+        .def_static("from_file", &PatternCollection::FromFile, py::arg("filepath"));
+    
+    // PatternManager
+    py::class_<PatternManager>(m, "PatternManager")
+        .def(py::init<>())
+        // Registration
+        .def("register_pattern", py::overload_cast<const ManagedPattern&, bool>(&PatternManager::RegisterPattern),
+             py::arg("pattern"), py::arg("overwrite") = false,
+             "Register a pattern")
+        .def("register_pattern", py::overload_cast<const std::string&, const std::string&, PatternCategory, const std::string&>(&PatternManager::RegisterPattern),
+             py::arg("name"), py::arg("pattern_string"), 
+             py::arg("category") = PatternCategory::kCustom,
+             py::arg("description") = "",
+             "Register a simple pattern")
+        .def("unregister_pattern", &PatternManager::UnregisterPattern, py::arg("name"))
+        .def("clear_patterns", &PatternManager::ClearPatterns)
+        .def("clear_patterns_by_category", &PatternManager::ClearPatternsByCategory, py::arg("category"))
+        // Retrieval
+        .def("get_pattern", &PatternManager::GetPattern, py::arg("name"), py::return_value_policy::reference_internal)
+        .def("get_pattern_names", &PatternManager::GetPatternNames)
+        // Note: get_all_patterns, get_patterns_by_category, get_patterns_by_tag removed
+        // due to binding issues with vector<const ManagedPattern*>
+        // Use get_pattern_names() + get_pattern(name) instead
+        .def("has_pattern", &PatternManager::HasPattern, py::arg("name"))
+        .def("is_pattern_enabled", &PatternManager::IsPatternEnabled, py::arg("name"))
+        // State management
+        .def("set_pattern_enabled", &PatternManager::SetPatternEnabled, py::arg("name"), py::arg("enabled"))
+        .def("set_pattern_priority", &PatternManager::SetPatternPriority, py::arg("name"), py::arg("priority"))
+        .def("set_category_enabled", &PatternManager::SetCategoryEnabled, py::arg("category"), py::arg("enabled"))
+        // Statistics
+        .def("get_statistics", &PatternManager::GetStatistics)
+        .def("get_pattern_count", &PatternManager::GetPatternCount)
+        .def("get_enabled_pattern_count", &PatternManager::GetEnabledPatternCount)
+        .def("print_summary", &PatternManager::PrintSummary)
+        .def("get_all_tags", &PatternManager::GetAllTags)
+        // Import/Export
+        .def("import_patterns", &PatternManager::ImportPatterns, 
+             py::arg("collection"), py::arg("overwrite") = false)
+        .def("import_patterns_from_json", &PatternManager::ImportPatternsFromJson,
+             py::arg("json_str"), py::arg("overwrite") = false)
+        .def("import_patterns_from_file", &PatternManager::ImportPatternsFromFile,
+             py::arg("filepath"), py::arg("overwrite") = false)
+        .def("export_patterns", py::overload_cast<const std::string&>(&PatternManager::ExportPatterns, py::const_),
+             py::arg("collection_name") = "patterns")
+        .def("export_to_json", &PatternManager::ExportToJson, py::arg("pretty") = true)
+        .def("export_to_file", &PatternManager::ExportToFile, 
+             py::arg("filepath"), py::arg("pretty") = true)
+        // Compiler integration
+        .def("get_enabled_pattern_definitions", &PatternManager::GetEnabledPatternDefinitions)
+        .def("apply_to_compiler", &PatternManager::ApplyToCompiler, py::arg("compiler"))
+        .def("create_compiler", &PatternManager::CreateCompiler);
+    
+    // PatternRegistry - Simplified to expose only get_manager() for direct access
+    py::class_<PatternRegistry>(m, "PatternRegistry")
+        .def_static("get_instance", &PatternRegistry::GetInstance, 
+                    py::return_value_policy::reference)
+        .def("get_manager", py::overload_cast<>(&PatternRegistry::GetManager), 
+             py::return_value_policy::reference)
+        .def("load_builtin_patterns", &PatternRegistry::LoadBuiltinPatterns)
+        .def("load_default_patterns", &PatternRegistry::LoadDefaultPatterns);
+    
+    // PatternCollections namespace functions
+    m.def("get_fusion_patterns", &PatternCollections::GetFusionPatterns, 
+          "Get fusion pattern collection");
+    m.def("get_optimization_patterns", &PatternCollections::GetOptimizationPatterns,
+          "Get optimization pattern collection");
+    m.def("get_quantization_patterns", &PatternCollections::GetQuantizationPatterns,
+          "Get quantization pattern collection");
+    m.def("get_all_builtin_pattern_collections", &PatternCollections::GetAllBuiltinPatterns,
+          "Get all built-in pattern collections");
+    
+    // Global registry access
+    m.def("get_pattern_registry", &GetPatternRegistry, 
+          py::return_value_policy::reference,
+          "Get global pattern registry");
     
     // ========================================================================
     // Utils

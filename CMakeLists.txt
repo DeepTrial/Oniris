@@ -85,6 +85,8 @@ set(ONIRIS_CORE_SOURCES
     src/passes/shape_inference.cpp
     src/passes/simplifier.cpp
     src/passes/onnx_matcher_style.cpp
+    src/passes/compiler.cpp
+    src/passes/pattern_manager.cpp
     src/utils/onnx_utils.cpp
 )
 

@@ -1,0 +1,34 @@
+# Optimization Patterns
+# Graph optimization patterns for dead code elimination and simplification
+
+patterns:
+  - name: Identity
+    pattern: |
+      ?(?, ?)
+      Identity(?, ?)
+    desc: Identity elimination
+    cat: optimization
+    priority: 50
+
+  - name: ReshapeReshape
+    pattern: |
+      Reshape(?, r0)
+      Reshape(r0, ?)
+    desc: Merge consecutive reshapes
+    cat: optimization
+    priority: 45
+
+  - name: TransposeTranspose
+    pattern: |
+      Transpose(?, t0)
+      Transpose(t0, ?)
+    desc: Merge consecutive transposes
+    cat: optimization
+    priority: 45
+
+  - name: SliceFull
+    pattern: |
+      Slice(?, ?)
+    desc: Slice of full tensor
+    cat: optimization
+    priority: 40

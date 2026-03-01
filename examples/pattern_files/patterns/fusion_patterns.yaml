@@ -1,0 +1,45 @@
+# Fusion Patterns
+# Operator fusion patterns for CNN network optimization
+
+patterns:
+  - name: ConvRelu
+    pattern: |
+      Conv(?, c0)
+      Relu(c0, ?)
+    desc: Conv + ReLU fusion
+    cat: fusion
+    priority: 100
+
+  - name: ConvBnRelu
+    pattern: |
+      Conv(?, c0)
+      BatchNormalization(c0, bn0)
+      Relu(bn0, ?)
+    desc: Conv + BN + ReLU fusion
+    cat: fusion
+    priority: 95
+
+  - name: ConvBn
+    pattern: |
+      Conv(?, c0)
+      BatchNormalization(c0, ?)
+    desc: Conv + BatchNorm fusion
+    cat: fusion
+    priority: 90
+
+  - name: GemmRelu
+    pattern: |
+      Gemm(?, g0)
+      Relu(g0, ?)
+    desc: FC + ReLU fusion
+    cat: fusion
+    priority: 85
+
+  - name: Swish
+    pattern: |
+      Conv(?, c0)
+      Sigmoid(c0, s0)
+      Mul([s0, c0], ?)
+    desc: Swish activation fusion
+    cat: fusion
+    priority: 80

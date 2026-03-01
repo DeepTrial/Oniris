@@ -1,0 +1,44 @@
+# Custom Patterns
+# Custom patterns for specific model optimization
+
+patterns:
+  - name: ResidualBlock
+    pattern: |
+      Conv(?, c0)
+      Add([c0, ?], ?)
+    desc: Residual connection
+    cat: custom
+    priority: 70
+
+  - name: SelfAttention
+    pattern: |
+      MatMul(?, qk0)
+      Softmax(qk0, softmax0)
+      MatMul([softmax0, ?], ?)
+    desc: Self-attention pattern
+    cat: custom
+    priority: 75
+
+  - name: LayerNorm
+    pattern: |
+      ReduceMean(?, rm0)
+      Sub([?, rm0], sub0)
+      Pow(sub0, pow0)
+      ReduceMean(pow0, rm1)
+      Add(rm1, add0)
+      Sqrt(add0, sqrt0)
+      Div(sub0, div0)
+    desc: Layer normalization
+    cat: custom
+    priority: 65
+
+  - name: Gelu
+    pattern: |
+      Div(?, div0)
+      Erf(div0, erf0)
+      Add(?, add0)
+      Mul(?, mul0)
+      Mul([mul0, ?], ?)
+    desc: GELU activation
+    cat: custom
+    priority: 60
